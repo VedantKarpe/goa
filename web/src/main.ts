@@ -158,7 +158,12 @@ async function start() {
     if (text) hud.whisper(text, 4);
   };
   const btn = (id: string, f: () => void) => document.getElementById(id)!.addEventListener('click', e => { (e.currentTarget as HTMLElement).blur(); unlockAudio(); f(); });
-  btn('bL', () => rig.turn(-Math.PI / 2)); btn('bR', () => rig.turn(Math.PI / 2)); btn('bIn', () => rig.zoom(2)); btn('bOut', () => rig.zoom(-2));
+  // the turn buttons turn the view for as long as they are held (and work while the other thumb walks)
+  for (const [id, dir] of [['bL', -1], ['bR', 1]] as [string, number][]) {
+    const b = document.getElementById(id)!;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); input.btnTurn = dir; b.setPointerCapture(e.pointerId); });
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, () => { input.btnTurn = 0; });
+  } btn('bIn', () => rig.zoom(2)); btn('bOut', () => rig.zoom(-2));
   btn('bHome', () => rig.reset()); btn('bTiltD', () => rig.tiltBy(-0.12)); btn('bTiltU', () => rig.tiltBy(0.12));
   btn('bTalk', talk); btn('bLift', lift); btn('bBan', banish); btn('bCall', call);
 

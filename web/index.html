@@ -48,6 +48,9 @@
     #places .pl button:hover, #places .pl button.on { border-color: var(--spirit); } #places .pl b { display: block; font-size: 15px; } #places .pl em { color: var(--muted); font-weight: 400; font-style: normal; font-size: 12px; } #places .pl span { color: #cfc8b4; font-size: 13px; }
     #arrow { position: fixed; left: 0; top: 0; display: none; pointer-events: none; text-align: center; color: var(--spirit); text-shadow: 0 1px 3px #000; font-weight: 700; }
     #arrow i { display: block; font-style: normal; font-size: 28px; } #arrow span { font-size: 13px; background: rgba(10,16,32,.7); padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+    #stick { position: fixed; display: none; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 2px solid rgba(236,228,207,.45); background: rgba(10,16,32,.25); pointer-events: none; z-index: 4; }
+    #stick i { position: absolute; left: 33px; top: 33px; width: 44px; height: 44px; border-radius: 50%; background: rgba(236,228,207,.55); }
+    .btns button { touch-action: none; }
     #loading { position: fixed; inset: 0; display: grid; place-items: center; font-size: 18px; background: #0a1020; }
   </style>
 </head>
@@ -65,7 +68,7 @@
   <div class="hud" id="perf"></div>
   <canvas id="map" title="Map of Panjim (tap to open)"></canvas>
   <div class="hud" id="help">WASD: walk · Shift: run · click, then move the mouse: look around (Esc frees it) · Q/E, Z/X: turn · wheel/±: zoom · T: talk · F: lift · Space: banish · R: ask for help · L: lamp · [ ]: tilt · 0: reset view · P: places · M: map · N: skip to night/day</div>
-  <div id="places"></div><div id="arrow"></div>
+  <div id="stick"><i></i></div><div id="places"></div><div id="arrow"></div>
   <div class="act"><button id="bPlaces">Places</button><button id="bTalk">Talk</button><button id="bLift">Lift</button><button id="bBan">Banish</button><button id="bCall">Ask for help</button></div>
   <div class="vignette"></div>
   <div class="btns"><button id="bHome" aria-label="Reset the view" title="Reset the view (0)">⌂</button><button id="bTiltD" aria-label="Tilt down">⤓</button><button id="bTiltU" aria-label="Tilt up">⤒</button><button id="bL" aria-label="Turn left">⟲</button><button id="bR" aria-label="Turn right">⟳</button><button id="bOut" aria-label="Zoom out">−</button><button id="bIn" aria-label="Zoom in">+</button></div>

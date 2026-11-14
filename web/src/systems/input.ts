@@ -2,7 +2,11 @@
 export class Input {
   private keys = new Set<string>();
   private drag: { x: number; y: number } | null = null;
-  private touch: { id: number; x: number; y: number; dx: number; dy: number } | null = null;
+  // fingers on the screen, each doing one thing at once: the first on the left part walks (a joystick where it
+  // landed), any other finger turns and tilts the view, so you can walk and look round together
+  private fingers = new Map<number, { kind: 'move' | 'look'; x0: number; y0: number; x: number; y: number }>();
+  private stick = document.getElementById('stick');
+  btnTurn = 0;            // -1 / +1 while a turn button is held
   turnDelta = 0;          // radians of turn from dragging since last read
   tiltDelta = 0;          // radians of tilt from dragging up and down since last read
   zoomDelta = 0;          // zoom steps since last read (+ in, - out)
@@ -21,13 +25,31 @@ export class Input {
     el.addEventListener('pointerdown', e => {
       // a mouse drag with any button turns (left-right) and tilts (up-down) the view; a finger walks the child
       if (e.pointerType === 'mouse') { this.drag = { x: e.clientX, y: e.clientY }; el.setPointerCapture(e.pointerId); }
-      else { this.touch = { id: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, dy: 0 }; el.setPointerCapture(e.pointerId); }
+      else {
+        const moving = [...this.fingers.values()].some(f => f.kind === 'move');
+        const kind = !moving && e.clientX < innerWidth * 0.5 ? 'move' : 'look';
+        this.fingers.set(e.pointerId, { kind, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY });
+        el.setPointerCapture(e.pointerId);
+        if (kind === 'move' && this.stick) { this.stick.style.display = 'block'; this.stick.style.left = `${e.clientX}px`; this.stick.style.top = `${e.clientY}px`; }
+      }
     });
     el.addEventListener('pointermove', e => {
       if (this.drag) { this.turnDelta += (e.clientX - this.drag.x) * 0.007; this.tiltDelta += (e.clientY - this.drag.y) * 0.004; this.drag.x = e.clientX; this.drag.y = e.clientY; }
-      if (this.touch && e.pointerId === this.touch.id) { this.touch.dx = e.clientX - this.touch.x; this.touch.dy = e.clientY - this.touch.y; }
+      const f = this.fingers.get(e.pointerId);
+      if (f) {
+        if (f.kind === 'look') { this.turnDelta += (e.clientX - f.x) * 0.008; this.tiltDelta += (e.clientY - f.y) * 0.005; }
+        f.x = e.clientX; f.y = e.clientY;
+        if (f.kind === 'move' && this.stick) {
+          const dx = f.x - f.x0, dy = f.y - f.y0, m = Math.hypot(dx, dy), k = m > 50 ? 50 / m : 1;
+          (this.stick.firstElementChild as HTMLElement).style.transform = `translate(${dx * k}px, ${dy * k}px)`;
+        }
+      }
     });
-    const up = (e: PointerEvent) => { if (this.drag && e.pointerType === 'mouse') this.drag = null; if (this.touch && e.pointerId === this.touch.id) this.touch = null; };
+    const up = (e: PointerEvent) => {
+      if (this.drag && e.pointerType === 'mouse') this.drag = null;
+      const f = this.fingers.get(e.pointerId);
+      if (f) { this.fingers.delete(e.pointerId); if (f.kind === 'move' && this.stick) { this.stick.style.display = 'none'; (this.stick.firstElementChild as HTMLElement).style.transform = ''; } }
+    };
     // click the city to hand the mouse to the camera: moving it then turns and tilts the view, as in a third-person
     // game; Esc gives the mouse back
     el.addEventListener('click', e => { if ((e as PointerEvent).pointerType !== 'touch' && document.pointerLockElement !== el) el.requestPointerLock?.(); });
@@ -45,10 +67,14 @@ export class Input {
   move(): { x: number; y: number } {
     let x = (this.has('d') || this.has('arrowright') ? 1 : 0) - (this.has('a') || this.has('arrowleft') ? 1 : 0);
     let y = (this.has('s') || this.has('arrowdown') ? 1 : 0) - (this.has('w') || this.has('arrowup') ? 1 : 0);
-    if (this.touch && Math.hypot(this.touch.dx, this.touch.dy) > 10) { const m = Math.hypot(this.touch.dx, this.touch.dy); x = this.touch.dx / m; y = this.touch.dy / m; }
+    for (const f of this.fingers.values()) {
+      if (f.kind !== 'move') continue;
+      const dx = f.x - f.x0, dy = f.y - f.y0, m = Math.hypot(dx, dy);
+      if (m > 8) { const k = Math.min(1, m / 50) / m; x = dx * k; y = dy * k; }   // further from the centre, faster
+    }
     const m = Math.hypot(x, y); return m > 1 ? { x: x / m, y: y / m } : { x, y };
   }
 
   /** -1, 0 or +1: the view being turned with held keys. */
-  heldTurn(): number { return (this.has('x') || this.has('e') ? 1 : 0) - (this.has('z') || this.has('q') ? 1 : 0); }
+  heldTurn(): number { return (this.has('x') || this.has('e') ? 1 : 0) - (this.has('z') || this.has('q') ? 1 : 0) + this.btnTurn; }
 }
