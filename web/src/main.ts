@@ -32,6 +32,7 @@ import { Blackout } from './systems/blackout';
 import { buildPromenade } from './world/promenade';
 import { Cows } from './entities/cows';
 import { buildShops, buildLoveSign } from './world/shops';
+import { Campaign } from './systems/campaign';
 
 async function start() {
   const [d] = await Promise.all([loadPanjim(), loadModels()]);
@@ -148,7 +149,9 @@ async function start() {
   const banish = () => {
     if (!day.night) { hud.whisper('No demons in the daytime, men. Relax.', 2); return; }
     if (st.oil < 8) { hud.whisper('Your torch battery is dead! Find a street light, quick.', 3); return; }
-    if (monsters.banishNear(px, pz)) { st.oil -= 8; st.points += 15; sfx.banish(); hud.whisper('Begone! The demon melts into the dark.', 2); }
+    const b = monsters.banishNear(px, pz);
+    if (b === 'dodged') { st.oil -= 8; hud.whisper('It laughs and slips round your beam! Try again.', 2); return; }
+    if (b) { st.oil -= 8; st.points += 15; sfx.banish(); hud.whisper('Begone! The demon melts into the dark.', 2); }
     else hud.whisper('No demon close enough.', 2);
   };
   const call = () => {
@@ -197,11 +200,30 @@ async function start() {
   toonify(scene, outlined, o => { let p: THREE.Object3D | null = o; while (p) { if (flat.has(p.name)) return true; p = p.parent; } return false; });
   let inkT = 0, edgeT = 0, wasNight = false;
   const blackout = new Blackout(net, pumps.spots);
+  // the story: seven nights to bring back the church bell
+  const campaign = new Campaign(new Map(d.places.map(([n, x, y]) => [n, { x: x * T, z: y * T }])), (x, z) => move.free(x, z), (x, z) => g.heightAt(x, z));
+  scene.add(campaign.group);
+  const card = document.createElement('div'); document.body.appendChild(card);
+  card.style.cssText = 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:#0a0814cc;color:#f6e7c1;font:700 34px Georgia,serif;text-align:center;z-index:20;padding:24px';
+  let cardT = 0;
+  const showCard = (title: string, sub: string, secs = 4, button = '') => {
+    card.innerHTML = `<div>${title}</div><div style="font:400 17px Georgia,serif;max-width:560px;line-height:1.45">${sub}</div>${button ? `<button style="font:600 16px Georgia,serif;padding:8px 18px;border-radius:8px;border:2px solid #f2c230;background:#7a1e1e;color:#fff4d8;cursor:pointer">${button}</button>` : ''}`;
+    card.style.display = 'flex'; cardT = button ? 1e9 : secs;
+    card.querySelector('button')?.addEventListener('click', () => { campaign.reset(); card.style.display = 'none'; cardT = 0; hud.whisper('A new story begins. Night 1 at dusk.', 4); });
+  };
+  card.addEventListener('click', e => { if ((e.target as HTMLElement).tagName !== 'BUTTON') { card.style.display = 'none'; cardT = 0; } });
+  let phaseSeen = '';
+  const camDir = new THREE.Vector3();
+  const inView = (x: number, z: number) => {   // is (x, z) in front of the view, not too far off?
+    const c = rig.camera.position; rig.camera.getWorldDirection(camDir);
+    const dx = x - c.x, dz = z - c.z, L = Math.hypot(dx, dz) || 1, fl = Math.hypot(camDir.x, camDir.z) || 1;
+    return L < 160 && (dx * camDir.x + dz * camDir.z) / (L * fl) > Math.cos(0.5);
+  };
   const clock = new THREE.Clock();
   let mapT = 0, shopT = 0, cowSaid = false;
   const shopTag = document.createElement('div'); shopTag.id = 'shopTag'; document.body.appendChild(shopTag);
   shopTag.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#7a1e1ee6;color:#fff4d8;font:600 14px Georgia,serif;padding:4px 12px;border-radius:6px;border:2px solid #f2c230;display:none;pointer-events:none;z-index:5';
-  (window as unknown as { rk: unknown }).rk = { THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
+  (window as unknown as { rk: unknown }).rk = { campaign, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
   const frame = (dt: number) => {
     const night = day.night;
     let speed = 0;
@@ -232,7 +254,8 @@ async function start() {
     const py = traffic.riding ? traffic.riding.obj.position.y + 2.2 : bikes.riding ? gy + 1.3 : gy;
     bikes.follow(px, gy + 0.15, pz, child.heading, performance.now() / 1000);
     child.obj.position.set(px, py, pz);
-    const lampLit = st.lamp && st.oil > 0.5;   // an empty battery gives no light at all
+    const noTorch = campaign.active && !!campaign.cur?.noTorch;
+    const lampLit = st.lamp && st.oil > 0.5 && !noTorch;   // an empty battery gives no light at all (and on the creek night none works)
     child.update(dt, speed, night && lampLit);
     child.obj.rotation.z = hurtT > 0 ? Math.sin(hurtT * 30) * 0.15 : 0; hurtT = Math.max(0, hurtT - dt);
 
@@ -260,18 +283,50 @@ async function start() {
       else hud.whisper(pumpLine, 4);
     }
     // the torch dies at night: the blackout quest. Only one way stays lit, to a battery shop; demons wait along it
-    if (night && st.oil <= 0.5 && !blackout.active) { const m = blackout.start(px, pz); if (m) { day.setLitStreets(blackout.edges); sfx.hurt(); hud.whisper(m, 9); } }
+    if (night && st.oil <= 0.5 && !blackout.active && !noTorch) { const m = blackout.start(px, pz); if (m) { day.setLitStreets(blackout.edges); sfx.hurt(); hud.whisper(m, 9); } }
     if (blackout.active) {
       for (const a of blackout.ambushAhead(px, pz)) { monsters.spawnAt(a.x, a.z); monsters.spawnAt(a.x + 6, a.z - 4); }
       if (!night) { blackout.end(); day.setLitStreets(null); hud.whisper('Morning. The lights go off by themselves, and the sun charges your torch.', 4); }
     }
-    const hurt = monsters.update(dt, px, pz, night, lampLit, (x, z) => day.litAt(x, z));
+    // tonight's spirits; good deeds (points) buy a stronger torch that holds them further off
+    monsters.rules = campaign.rules; monsters.rules.reach += st.points >= 300 ? 4 : st.points >= 150 ? 2 : 0;
+    const hurt = monsters.update(dt, px, pz, night, lampLit, (x, z) => day.litAt(x, z) || (noTorch && cows.byGuide(x, z)), inView);
     if (hurt > 0) { st.courage = Math.max(0, st.courage - hurt); if (hurtT <= 0) { sfx.hurt(); hurtT = 0.4; } }
     // the torch drains its battery at night and recharges by day; standing in light restores courage
-    if (night && lampLit) st.oil = Math.max(0, st.oil - dt * 0.35);
+    if (night && lampLit) st.oil = Math.max(0, st.oil - dt * (campaign.active ? campaign.cur!.drain : 0.35) * (st.points >= 300 ? 0.75 : 1));
     // recharging at night: stand under a street light (the torch's charger in your pocket fills from it)
     // night falls: the Rakhondar sends you after the stranded; morning calls the search off
-    if (night !== wasNight) { if (night) { const m = quests.startNight(px, pz); if (m) hud.whisper(m, 8); } else quests.endNight(); wasNight = night; }
+    if (night !== wasNight) {
+      if (night) {
+        const n = campaign.cur;
+        if (n) {
+          // the story's night: the blackout night starts dark, with Uncle's shop as the goal
+          let shop: { x: number; z: number } | null = null;
+          if (n.blackout) { st.oil = 0; const m = blackout.start(px, pz); if (m) { day.setLitStreets(blackout.edges); shop = blackout.target; } }
+          const m = campaign.startNight(shop);
+          if (m) { showCard(n.title, `Out tonight: ${n.spirit}. ${n.hint}`, 4); hud.whisper(m, 14, true); sfx.spirit(); }
+        } else { const m = quests.startNight(px, pz); if (m) hud.whisper(m, 8); }
+      } else {
+        quests.endNight(); cows.clearGuides();
+        const m = campaign.endNight(); if (m) { hud.whisper(m, 7, true); sfx.hurt(); }
+      }
+      wasNight = night;
+    }
+    // the story, each frame
+    const ev = campaign.update(dt, px, pz, day.min);
+    if (ev) {
+      hud.whisper(ev.msg, ev.big ? 10 : 5, true); (ev.lost ? sfx.hurt : ev.big ? sfx.done : sfx.pick)();
+      if (ev.won) st.points += 100;
+      if (ev.won && campaign.done) showCard('Panjim is free!', 'The bell rings every evening again, and the spirits sleep in the river mist. Dev borem korum, baba.', 0, 'Play the seven nights again');
+      else if (ev.won) showCard(`Piece ${campaign.night} of 6 saved`, 'Tomorrow night will be harder.', 3);
+    }
+    // the creek night: glowing cows stand along the way to the piece (and then to the church)
+    if (campaign.phase + campaign.night !== phaseSeen) {
+      phaseSeen = campaign.phase + campaign.night;
+      if (campaign.active && campaign.cur?.noTorch) cows.guide(blackout.route(px, pz, campaign.piece.x, campaign.piece.z, 35)); else cows.clearGuides();
+    }
+    if (noTorch && cows.byGuide(px, pz)) st.courage = Math.min(100, st.courage + dt * 6);
+    if (cardT > 0 && cardT < 1e8) { cardT -= dt; if (cardT <= 0) card.style.display = 'none'; }
     if (!night) st.oil = Math.min(100, st.oil + dt * 2);
     if (day.litAt(px, pz) && hurt === 0) st.courage = Math.min(100, st.courage + dt * (night ? 3 : 1));
     if (st.courage <= 0) {
@@ -291,21 +346,22 @@ async function start() {
     // the sun crosses from east (morning) to west (evening), low early and late
     const sa = Math.max(0.2, Math.min(Math.PI - 0.2, (day.min - 360) / 720 * Math.PI)), sh = Math.max(0.6, Math.sin(sa))   // never so low that poles and palms cast long stripes across the town;
     sun.position.set(px + Math.cos(sa) * 260, py + sh * 260, pz + 80); sun.target.position.set(px, py, pz);
-    const camD = rig.camera.position.distanceTo(child.obj.position); const fog = scene.fog as THREE.Fog; fog.near = Math.max(260, camD * 1.5); fog.far = Math.max(900, camD * 4.5);   // zoomed in close, the haze still starts far off
+    const camD = rig.camera.position.distanceTo(child.obj.position); const fog = scene.fog as THREE.Fog; fog.near = Math.max(260, camD * 1.5); fog.far = Math.max(900, camD * 4.5);
+    if (campaign.active && campaign.cur?.fog && night) { fog.near = Math.max(20, camD * 0.6); fog.far = Math.max(150, camD * 2); }   // the Devchar's fog   // zoomed in close, the haze still starts far off
     let near = '', nd = 1e9;
     for (const p of places) { const dd = Math.hypot(p.X - px, p.Z - pz); if (dd < nd) { nd = dd; near = p.n; } }
     map.reveal(px, pz, 6);
     mapT -= dt;
-    if (mapT <= 0) { mapT = 0.1; map.draw(px, pz, rig.yaw, [...(blackout.target ? [{ ...blackout.target, done: false }] : quests.pins), ...(places2.target ? [{ x: places2.target.x, z: places2.target.z, name: places2.target.name, done: false }] : [])], night); }
+    if (mapT <= 0) { mapT = 0.1; map.draw(px, pz, rig.yaw, [...(campaign.active ? [{ x: campaign.piece.x, z: campaign.piece.z, name: 'Bell', done: false }] : blackout.target ? [{ ...blackout.target, done: false }] : quests.pins), ...(places2.target ? [{ x: places2.target.x, z: places2.target.z, name: places2.target.name, done: false }] : [])], night); }
     // vehicles, people, demons and quest markers come and go: give the new ones the cartoon look too
     inkT -= dt;
     if (inkT <= 0) { inkT = 0.5; for (const gr of [traffic.group, people.group, monsters.group, quests.group]) toonify(gr, [gr], () => false); }
     const seen = places2.update(px, pz, rig.camera, performance.now() / 1000);
     if (seen) { st.points += 5; hud.whisper(`${seen.name}! ${seen.note}`, 6); }
     renderer.render(scene, rig.camera);
-    const t = blackout.target ?? quests.target;
-    const hint = t && (blackout.active || quests.cur?.kind !== 'collect') ? `${Math.round(Math.hypot(t.x - px, t.z - pz) / 10) * 10} m` : '';
-    hud.update(dt, renderer, { courage: st.courage, oil: st.oil, points: st.points, time: day.label + (night ? ' · night' : ''), placeName: nd < 400 ? near : '', objective: blackout.active ? "Torch dead: follow the only lit street to Uncle's battery shop" : quests.objective, riding: !!traffic.riding, hint });
+    const t = campaign.active ? campaign.piece : blackout.target ?? quests.target;
+    const hint = t && (campaign.active || blackout.active || quests.cur?.kind !== 'collect') ? `${Math.round(Math.hypot(t.x - px, t.z - pz) / 10) * 10} m` : '';
+    hud.update(dt, renderer, { courage: st.courage, oil: st.oil, points: st.points, time: day.label + (night ? ' · night' : ''), placeName: nd < 400 ? near : '', objective: campaign.active || (!campaign.done && !blackout.active) ? campaign.objective : blackout.active ? "Torch dead: follow the only lit street to Uncle's battery shop" : quests.objective, riding: !!traffic.riding, hint });
   };
   (window as unknown as { rkFrame: (dt: number) => void }).rkFrame = frame;   // for tests: run one frame by hand
   // adaptive resolution: draw fewer pixels when frames run slow, more when there is room, so it stays smooth

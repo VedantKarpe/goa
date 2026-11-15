@@ -5,7 +5,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { Network } from '../world/network';
 import type { Ground } from '../world/data';
 
-interface Cow { obj: THREE.Group; x: number; z: number; h: number; t: number; state: 'stand' | 'walk' | 'lie'; legs: THREE.Object3D[] }
+interface Cow { obj: THREE.Group; x: number; z: number; h: number; t: number; state: 'stand' | 'walk' | 'lie'; legs: THREE.Object3D[]; guide?: boolean }
 
 export class Cows {
   readonly group = new THREE.Group();
@@ -15,8 +15,6 @@ export class Cows {
 
   constructor(net: Network, private g: Ground, private free: (x: number, z: number) => boolean, rest: [number, number][]) {
     this.group.name = 'cows';
-    const coats = [0xf2ede2, 0xe8dcc4, 0xc89a6a, 0x8a6a4e, 0xf2ede2];
-    const horn = new THREE.MeshLambertMaterial({ color: 0x3a3028 }), hoof = new THREE.MeshLambertMaterial({ color: 0x2a2420 });
     const spots: [number, number, boolean][] = [];
     for (const [x, z] of rest) for (let i = 0; i < 3; i++) spots.push([x + (this.rnd() - 0.5) * 30, z + (this.rnd() - 0.5) * 30, true]);
     for (let i = 0; spots.length < 34 && i < 400; i++) {
@@ -25,9 +23,14 @@ export class Cows {
       const p = net.at(e, this.rnd() * E.len), s = (this.rnd() - 0.5) * E.width * 0.8;
       spots.push([p.x + p.dz * s, p.z - p.dx * s, false]);
     }
-    for (const [x, z, lie] of spots) {
-      if (!this.free(x, z)) continue;
-      const coat = new THREE.MeshLambertMaterial({ color: coats[Math.floor(this.rnd() * coats.length)] });
+    for (const [x, z, lie] of spots) if (this.free(x, z)) this.add(x, z, lie, false);
+  }
+
+  private add(x: number, z: number, lie: boolean, glow: boolean): Cow {
+    {
+      const coats = [0xf2ede2, 0xe8dcc4, 0xc89a6a, 0x8a6a4e, 0xf2ede2];
+      const horn = new THREE.MeshLambertMaterial({ color: 0x3a3028 }), hoof = new THREE.MeshLambertMaterial({ color: 0x2a2420 });
+      const coat = new THREE.MeshLambertMaterial({ color: glow ? 0xfff6dc : coats[Math.floor(this.rnd() * coats.length)], emissive: glow ? 0xffe9a8 : 0x000000, emissiveIntensity: glow ? 0.9 : 0 });
       const o = new THREE.Group();
       const body = new THREE.Mesh(mergeGeometries([new THREE.BoxGeometry(2.1, 0.95, 0.85).translate(0, 1.35, 0), new THREE.BoxGeometry(0.45, 0.4, 0.5).translate(0.55, 1.95, 0)])!, coat);   // body and the hump
       const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.45).translate(1.35, 1.6, 0), coat);
@@ -40,10 +43,21 @@ export class Cows {
         leg.position.set(lx, 0.9, lz); o.add(leg); legs.push(leg);
       }
       o.traverse(m => { m.castShadow = true; }); o.scale.setScalar(1.25);
-      const cow: Cow = { obj: o, x, z, h: this.rnd() * Math.PI * 2, t: this.rnd() * 8, state: lie ? 'lie' : 'stand', legs };
+      const cow: Cow = { obj: o, x, z, h: this.rnd() * Math.PI * 2, t: this.rnd() * 8, state: lie ? 'lie' : 'stand', legs, guide: glow };
+      if (glow) { const l = new THREE.PointLight(0xffe9a8, 60, 16, 1.5); l.position.y = 3; o.add(l); }
       this.list.push(cow); this.group.add(o);
+      return cow;
     }
   }
+
+  /** Glowing cows standing along a way (the creek night): they light the path, and spirits keep back from them. */
+  guide(points: { x: number; z: number }[]) {
+    this.clearGuides();
+    for (const p of points) if (this.free(p.x, p.z)) { const c = this.add(p.x, p.z, false, true); c.state = 'stand'; c.t = 1e9; }
+  }
+  clearGuides() { for (const c of this.list.filter(c => c.guide)) { this.group.remove(c.obj); this.list.splice(this.list.indexOf(c), 1); } }
+  /** Is (x, z) by a glowing cow? */
+  byGuide(x: number, z: number, r = 10): boolean { return this.list.some(c => c.guide && Math.hypot(c.x - x, c.z - z) < r); }
 
   update(dt: number) {
     for (const c of this.list) {

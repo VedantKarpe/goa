@@ -48,6 +48,22 @@ export class Blackout {
     return `Your torch is dead! Every light in Panjim has gone out... except one street. Follow the lit way to Uncle's battery shop, about ${m} m off. Careful, baba: they will be waiting along it.`;
   }
 
+  /** Points every `step` m along the shortest street way between two spots. */
+  route(ax: number, az: number, bx: number, bz: number, step = 40): { x: number; z: number }[] {
+    const from = this.nearestNode(ax, az), to = this.nearestNode(bx, bz), n = this.net.nodes.length;
+    const dist = new Float64Array(n).fill(Infinity), via = new Int32Array(n).fill(-1), viaEdge = new Int32Array(n), done = new Uint8Array(n);
+    dist[from] = 0;
+    for (let it = 0; it < n; it++) {
+      let u = -1, ud = Infinity;
+      for (let i = 0; i < n; i++) if (!done[i] && dist[i] < ud) { ud = dist[i]; u = i; }
+      if (u < 0 || u === to) break; done[u] = 1;
+      for (const e of this.net.nodes[u].out) { const v = this.net.end(e), nd = ud + this.net.edge(e).len; if (nd < dist[v]) { dist[v] = nd; via[v] = u; viaEdge[v] = e; } }
+    }
+    const out: { x: number; z: number }[] = [];
+    for (let v = to; v !== from && via[v] >= 0; v = via[v]) { const e = viaEdge[v], E = this.net.edge(e); for (let s = E.len; s > 0; s -= step) { const p = this.net.at(e, s); out.push({ x: p.x + p.dz * 4, z: p.z - p.dx * 4 }); } }
+    return out.reverse();
+  }
+
   /** Ambushes: as the child walks the lit way, demons rise from the dark a little ahead (once per stretch). */
   ambushAhead(cx: number, cz: number): { x: number; z: number }[] {
     if (!this.active) return [];

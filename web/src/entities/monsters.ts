@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import type { Ground } from '../world/data';
 import type { Movement } from '../systems/movement';
+import { BASE, type SpiritRules } from '../systems/campaign';
 
 let smokeTex: THREE.Texture | null = null, glowTex: THREE.Texture | null = null;
 function radial(stops: [number, string][]): THREE.Texture {
@@ -21,6 +22,7 @@ export class Monsters {
   list: Demon[] = [];
   private spirit: THREE.Group;
   spiritT = 0;
+  rules: SpiritRules = { ...BASE };   // tonight's spirit: how many, how fast, what they can do
   private seed = 1337;
   private rnd = () => (this.seed = (this.seed * 16807) % 2147483647) / 2147483647;
 
@@ -47,7 +49,7 @@ export class Monsters {
       // a demon: a column of curling dark smoke with a hunched shape, ember eyes that glow, sparks drifting up
       const obj = new THREE.Group();
       for (let k = 0; k < 9; k++) {
-        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: SMOKE(), color: k < 3 ? 0x1a0f24 : 0x2a1830, transparent: true, opacity: 0.75 - k * 0.04, depthWrite: false }));
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: SMOKE(), color: new THREE.Color(this.rules.tint).multiplyScalar(k < 3 ? 0.65 : 1), transparent: true, opacity: 0.75 - k * 0.04, depthWrite: false }));
         const r = 1.6 + Math.sin(k) * 0.6; sp.scale.set(r * 2.2, r * 2.4, 1); sp.position.set(Math.sin(k * 2.3) * 0.6, 0.8 + k * 0.62, Math.cos(k * 2.3) * 0.6);
         sp.userData.k = k; obj.add(sp);
       }
@@ -62,9 +64,9 @@ export class Monsters {
   }
 
   /** Move the demons; returns how much courage they took this frame. */
-  update(dt: number, cx: number, cz: number, night: boolean, lampLit: boolean, litAt: (x: number, z: number) => boolean): number {
+  update(dt: number, cx: number, cz: number, night: boolean, lampLit: boolean, litAt: (x: number, z: number) => boolean, seen: (x: number, z: number) => boolean = () => false): number {
     let hurt = 0;
-    const want = night ? 12 : 0;   // a dozen at a time: the night is dangerous
+    const R = this.rules, want = night ? R.want : 0;
     if (this.list.length < want && this.rnd() < dt * 1.5) { const d = this.make(cx, cz); if (d) this.list.push(d); }
     for (const d of [...this.list]) {
       d.t += dt;
@@ -73,8 +75,9 @@ export class Monsters {
       d.fade = Math.max(0, Math.min(1, d.fade + (leaving ? -dt : dt * 0.6)));
       if (leaving && d.fade <= 0) { this.group.remove(d.obj); this.list.splice(this.list.indexOf(d), 1); continue; }
       // creep toward the child; held off by the torch beam and by street light
-      let sp = leaving ? -6 : dist < 25 ? 10 : 6;   // they close in, and lunge when near
-      if (!leaving && lampLit && dist < 8) sp = -1.5;   // the torch only just holds them off
+      let sp = leaving ? -6 : dist < 25 ? R.lunge : R.speed;   // they close in, and lunge when near
+      if (!leaving && lampLit && dist < R.reach) sp = -1.5;   // the torch only just holds them off
+      if (!leaving && R.freezeSeen && seen(d.x, d.z)) sp = 0;   // the Mhamzo cannot move while you watch it
       const nx = d.x + (dx / dist) * sp * dt, nz = d.z + (dz / dist) * sp * dt;
       if (litAt(nx, nz) && sp > 0) { /* stays at the light's edge */ } else { d.x = nx; d.z = nz; }
       d.obj.position.set(d.x + Math.sin(d.t * 2) * 0.4, this.g.heightAt(d.x, d.z) + 0.3 + Math.sin(d.t * 3) * 0.3, d.z);
@@ -85,7 +88,8 @@ export class Monsters {
         else if (c.userData.eye) (c as THREE.Sprite).material.opacity = d.fade * (0.75 + Math.sin(d.t * 9) * 0.25);
       }
       d.obj.scale.setScalar(0.4 + d.fade * 0.8);
-      if (!leaving && dist < 4) { hurt += 22 * dt; }
+      d.obj.visible = !R.hideBeyond || dist < R.hideBeyond || leaving;   // the Khavis hide in the crowd until close
+      if (!leaving && dist < 4) { hurt += R.hurt * dt; }
     }
     // the spirit: rises beside the child, then fades
     if (this.spiritT > 0) {
@@ -99,8 +103,9 @@ export class Monsters {
   }
 
   /** Banish the nearest demon within reach; true if one was. */
-  banishNear(cx: number, cz: number): boolean {
+  banishNear(cx: number, cz: number): boolean | 'dodged' {
     const d = this.list.find(d => d.banish <= 0 && Math.hypot(d.x - cx, d.z - cz) < 22);
+    if (d && this.rnd() < this.rules.dodge) return 'dodged';   // some spirits laugh at the torch
     if (d) d.banish = 1;
     return !!d;
   }

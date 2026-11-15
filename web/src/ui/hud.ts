@@ -12,7 +12,11 @@ export class Hud {
   private sayT = 0;
 
   /** Show a line of speech or story for a few seconds. */
-  whisper(text: string, secs = 5) { this.say.textContent = text; this.say.style.opacity = '1'; this.sayT = secs; }
+  whisper(text: string, secs = 5, keep = false) {
+    if (this.lockT > 0 && !keep) return;   // a story line stays up until it has been read
+    this.say.textContent = text; this.say.style.opacity = '1'; this.sayT = secs; if (keep) this.lockT = Math.min(secs, 8);
+  }
+  private lockT = 0;
 
   update(dt: number, renderer: THREE.WebGLRenderer, s: { courage: number; oil: number; points: number; time: string; placeName: string; objective: string; riding: boolean; hint: string }) {
     this.frames++; this.acc += dt; this.worst = Math.max(this.worst, dt);
@@ -28,6 +32,7 @@ export class Hud {
     if (this.place.textContent !== s.placeName) { this.place.textContent = s.placeName; this.place.style.display = s.placeName ? '' : 'none'; }
     const o = s.objective + (s.hint ? ` — ${s.hint}` : '');
     if (this.obj.textContent !== o) this.obj.textContent = o;
+    this.lockT -= dt;
     if (this.sayT > 0) { this.sayT -= dt; if (this.sayT <= 0) this.say.style.opacity = '0'; }
   }
 }
