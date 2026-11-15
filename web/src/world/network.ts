@@ -1,6 +1,6 @@
 // The street network as a graph: a node wherever streets share a point, an edge for each piece of street between.
 // Vehicles drive it (keeping left, as in India); townspeople walk its pavements.
-import { T, pts, type PanjimData } from './data';
+import { T, pts, bridgeDeck, type PanjimData } from './data';
 import type { Ground } from './data';
 
 export interface Edge { a: number; b: number; line: [number, number][]; len: number; width: number; oneWay: boolean; deck: number | null }
@@ -25,7 +25,7 @@ export class Network {
     for (const [f, w, flags] of streets) {
       const p = pts(f); let start = 0;
       const bridge = (flags & 1) !== 0;
-      const deck = bridge ? Math.max(5, g.heightAt(p[0][0] * T, p[0][1] * T) + 0.3, g.heightAt(p[p.length - 1][0] * T, p[p.length - 1][1] * T) + 0.3) + ((flags & 8) ? 14 : 0) : null;
+      const deck = bridge ? bridgeDeck(g, p.map(([x, y]) => [x * T, y * T] as [number, number]), flags) : null;
       for (let i = 1; i < p.length; i++) {
         if (i < p.length - 1 && (uses.get(key(p[i][0], p[i][1])) ?? 0) < 2) continue;
         const line = p.slice(start, i + 1).map(([x, y]) => [x * T, y * T] as [number, number]);

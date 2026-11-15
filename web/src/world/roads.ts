@@ -1,7 +1,7 @@
 // Streets and footpaths: ribbons laid on the ground (bridges held level above the water), each kind merged into one
 // mesh. Also the lookup used to keep the streets walkable and to stand people and vehicles on bridges.
 import * as THREE from 'three';
-import { Ground, T, pts, type PanjimData } from './data';
+import { Ground, T, pts, bridgeDeck, type PanjimData } from './data';
 import { wear } from './wear';
 
 const ROAD_K = 1.5;                 // streets are drawn 1.5 x their mapped width, as in the canvas game
@@ -58,7 +58,7 @@ export function buildRoads(d: PanjimData, g: Ground): { group: THREE.Group; segs
     if (line.length < 2) continue;
     const width = w * ROAD_K, bridge = (flags & 1) !== 0;
     // a bridge is held level: at the height of the higher of its two ends, and never lower than 5 m over the water
-    const deck = bridge ? Math.max(5, g.heightAt(...line[0]) + 0.3, g.heightAt(...line[line.length - 1]) + 0.3) + ((flags & 8) ? 14 : 0) : null;
+    const deck = bridge ? bridgeDeck(g, line, flags) : null;
     ribbon(line, width + (width >= 12 ? 5 : 3), g, 0.12, deck === null ? null : deck - 0.05, pave, paveI);
     ribbon(line, width, g, 0.2, deck, asph, asphI);
     // road markings: a dashed white centre line on every street wide enough for two lanes (a lane divider on the

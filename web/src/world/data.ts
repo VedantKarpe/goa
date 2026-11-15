@@ -106,3 +106,13 @@ export class Ground {
     return x < 0 || y < 0 || x >= this.W || y >= this.H || this.wet[y * this.W + x] === 1;
   }
 }
+
+/** How high a bridge's deck is (world points along it). The long river bridges stand 5 m over the water (Atal Setu
+ *  14 m more); a short creek bridge in town is level with the road at its two ends, so the street runs straight on. */
+export function bridgeDeck(g: Ground, line: [number, number][], flags: number): number {
+  let L = 0; for (let i = 1; i < line.length; i++) L += Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]);
+  const end = (p: [number, number]) => Math.max(0.6, g.heightAt(p[0], p[1])) + 0.2;
+  const ends = Math.max(end(line[0]), end(line[line.length - 1]));
+  if (L < 160 && !(flags & 8)) return ends;
+  return Math.max(5, ends + 0.1) + ((flags & 8) ? 14 : 0);
+}
