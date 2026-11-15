@@ -20,8 +20,8 @@ export function toToon(m: THREE.MeshLambertMaterial): THREE.MeshToonMaterial {
     transparent: m.transparent, opacity: m.opacity, side: m.side, gradientMap: toonRamp(),
     polygonOffset: m.polygonOffset, polygonOffsetFactor: m.polygonOffsetFactor, polygonOffsetUnits: m.polygonOffsetUnits,
   });
-  t.depthWrite = m.depthWrite;
-  if (m.onBeforeCompile) t.onBeforeCompile = m.onBeforeCompile;
+  t.depthWrite = m.depthWrite; t.alphaTest = m.alphaTest; t.emissiveMap = m.emissiveMap;
+  if (m.onBeforeCompile) { t.onBeforeCompile = m.onBeforeCompile; t.customProgramCacheKey = m.customProgramCacheKey; }
   return t;
 }
 

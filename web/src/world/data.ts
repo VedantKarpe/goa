@@ -17,6 +17,7 @@ export interface PanjimData {
   names: string[]; places: [string, number, number][]; lm: Landmark[];
   named?: [string, string, number, number, number][];   // style, name, x, y (tiles), storeys (0 = unknown)
   casinos?: [string, number, number, number, number][]; // name, x, y (tiles), heading (rad), length (m)
+  shops?: [string, string, number, number, number][];   // name, kind, x, y (tiles), famous (1), from OpenStreetMap
 }
 
 export async function loadPanjim(): Promise<PanjimData> {

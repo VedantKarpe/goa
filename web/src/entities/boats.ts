@@ -61,8 +61,16 @@ export class Boats {
     this.group.name = 'boats';
     const open = (x: number, z: number, r: number) => { for (let a = 0; a < 6.28; a += 0.8) if (!g.isWet(x + Math.cos(a) * r, z + Math.sin(a) * r)) return false; return g.isWet(x, z); };
     // the casinos ride at their real moorings off the Panjim waterfront (from the map), turned along the river
-    for (const [, x, y, head, len] of moorings) {
-      const { obj, lights } = make('casino'); obj.scale.setScalar(Math.max(0.6, Math.min(1.4, len / 70))); this.group.add(obj);
+    for (const [name, x, y, head, len] of moorings) {
+      const { obj, lights } = make('casino');
+      // the casino's name in lights along its top deck, readable from both banks
+      const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 160;
+      const c = cv.getContext('2d')!; c.fillStyle = '#14081e'; c.fillRect(0, 0, 1024, 160);
+      c.font = '900 110px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#ffd24a'; c.shadowColor = '#ff2a8a'; c.shadowBlur = 18;
+      c.fillText(name.toUpperCase(), 512, 84);
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(40, 6.25), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+      sign.position.set(-4, 20.5, 0); obj.add(sign); obj.scale.setScalar(Math.max(0.6, Math.min(1.4, len / 70))); this.group.add(obj);
       this.list.push({ kind: 'casino', obj, x: x * 20, z: y * 20, h: head, v: 0, turn: 0, t: this.rnd() * 9, lights });
       obj.rotation.y = -head;
     }

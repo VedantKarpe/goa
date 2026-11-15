@@ -48,6 +48,7 @@ export class Traffic {
   readonly group = new THREE.Group();
   list: Vehicle[] = [];
   potholes: { x: number; z: number }[] = [];
+  cows: { x: number; z: number }[] = [];         // cows in the road: everyone waits (and honks)
   riding: Vehicle | null = null;
   private seed = 99;
   private rnd = () => (this.seed = (this.seed * 16807) % 2147483647) / 2147483647;
@@ -121,6 +122,10 @@ export class Traffic {
         const left = this.net.edge(v.e).len - v.s;
         if (this.signals.mustStop(v.e, left, v.hx, v.hz)) want = Math.min(want, Math.max(0, (left - 7) * 0.7));
         else if (left < 14 && this.signals.unsignalled(v.e)) want = Math.min(want, 4);
+      }
+      for (const c of this.cows) {
+        const dx = c.x - v.x, dz = c.z - v.z, ahead = dx * v.hx + dz * v.hz;
+        if (ahead > 0 && ahead < v.len + 8 && Math.abs(dx * v.hz - dz * v.hx) < 2.8) { want = Math.min(want, Math.max(0, (ahead - v.len) * 0.4)); if (ahead < v.len + 5 && Math.random() < 0.004) this.onEvent('honk', ''); break; }
       }
       for (const p of this.potholes) {
         const dx = p.x - v.x, dz = p.z - v.z, ahead = dx * v.hx + dz * v.hz;

@@ -57,6 +57,11 @@ export class Minimap {
     if (night) { c.fillStyle = 'rgba(10,16,40,.45)'; c.fillRect(0, 0, W, H); }
     c.imageSmoothingEnabled = true;
     c.drawImage(this.fogCan, ox, oy, this.d.W * k, this.d.H * k);
+    // shops, once that part of the city is seen: small dots, and the famous places to eat as gold ones
+    for (const [, , x, y, f] of this.d.shops ?? []) {
+      if (!this.fog[Math.floor(y) * this.d.W + Math.floor(x)]) continue;
+      c.fillStyle = f ? '#f2c230' : '#e8d8c0'; c.beginPath(); c.arc(ox + x * k, oy + y * k, f ? 3 : 1.6, 0, Math.PI * 2); c.fill();
+    }
     if (this.big) {
       c.font = '600 11px Mukta, sans-serif'; c.fillStyle = '#ece4cf'; c.textAlign = 'center';
       for (const [n, x, y] of this.d.places) if (this.fog[Math.floor(y) * this.d.W + Math.floor(x)]) c.fillText(n, ox + x * k, oy + y * k);

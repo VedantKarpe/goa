@@ -2,6 +2,7 @@
 // mesh. Also the lookup used to keep the streets walkable and to stand people and vehicles on bridges.
 import * as THREE from 'three';
 import { Ground, T, pts, type PanjimData } from './data';
+import { wear } from './wear';
 
 const ROAD_K = 1.5;                 // streets are drawn 1.5 x their mapped width, as in the canvas game
 export interface Seg { ax: number; az: number; bx: number; bz: number; half: number; deck: number | null }
@@ -75,7 +76,9 @@ export function buildRoads(d: PanjimData, g: Ground): { group: THREE.Group; segs
     ribbon(line, 2.2, g, 0.16, (flags & 2) ? Math.max(4, g.heightAt(...line[0]) + 0.3) : null, path, pathI);
     for (let i = 1; i < line.length; i++) segs.push({ ax: line[i - 1][0], az: line[i - 1][1], bx: line[i][0], bz: line[i][1], half: 1.6, deck: null });
   }
-  group.add(meshOf(pave, paveI, 0xa65a46, 1), meshOf(path, pathI, 0xcdb98e, 1), meshOf(asph, asphI, 0x5c5e62, 2), meshOf(dash, dashI, 0xf2efe6, 3));
+  const pv = meshOf(pave, paveI, 0xa65a46, 1), as = meshOf(asph, asphI, 0x5c5e62, 2), mk = meshOf(dash, dashI, 0xf2efe6, 3);
+  wear(pv.material as THREE.Material, 'pavement'); wear(as.material as THREE.Material, 'asphalt'); wear(mk.material as THREE.Material, 'paint');   // worn, as Panjim's are
+  group.add(pv, meshOf(path, pathI, 0xcdb98e, 1), as, mk);
   return { group, segs };
 }
 

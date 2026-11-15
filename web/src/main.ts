@@ -30,6 +30,8 @@ import { buildStreetLife } from './world/streetlife';
 import { Signals } from './systems/signals';
 import { Blackout } from './systems/blackout';
 import { buildPromenade } from './world/promenade';
+import { Cows } from './entities/cows';
+import { buildShops, buildLoveSign } from './world/shops';
 
 async function start() {
   const [d] = await Promise.all([loadPanjim(), loadModels()]);
@@ -105,6 +107,22 @@ async function start() {
   const monsters = new Monsters(g, move); scene.add(monsters.group);
   const day = new Clock(net, g, (x, z) => bi.solid(x, z, 1.2)); scene.add(day.lamps);
   const quests = new Quests(d, net, g, blds.list, px, pz, (x, z) => move.free(x, z)); scene.add(quests.group);
+  // shops from OpenStreetMap, the famous places to eat also in the Places guide
+  const shops = buildShops(d, g, roads.segs); scene.add(shops.group);
+  for (const s of shops.list) if (s.famous) d.places.push([s.name, s.x / T, s.z / T]);
+  // the cows: some resting by the market and Church Square, the rest out on the streets
+  const restAt = d.places.filter(([n]) => n === 'Panjim Bazaar' || n === 'Church Square').map(([, x, y]) => [x * T, y * T] as [number, number]);
+  const cows = new Cows(net, g, (x, z) => move.free(x, z), restAt); scene.add(cows.group); traffic.cows = cows.list;
+  // "I love Goa" on the riverfront: the open bank west of the Old Secretariat, where the road leaves room by the water
+  {
+    let best: [number, number] | null = null, bd = 1e9;
+    for (let x = 60 * T; x <= 135 * T; x += 4) for (let z = 0; z <= 30 * T; z += 3) {
+      if (g.landAt(x, z) < 0.9 || si.at(x, z) || bi.solid(x, z, 5) || g.landAt(x, z - 12) > 0.5) continue;
+      if ([[-6, 0], [6, 0], [0, 3]].some(([a, b]) => si.at(x + a, z + b) || g.landAt(x + a, z + b) < 0.9)) continue;
+      const dd = Math.hypot(x - 75.4 * T, z - 9.5 * T); if (dd < bd) { bd = dd; best = [x, z]; }
+    }
+    if (best) scene.add(buildLoveSign(best[0], g.heightAt(best[0], best[1]), best[1], 0));
+  }
   const map = new Minimap(d);
   scene.add(buildPromenade(d, g, bi, (x, z) => { const s = si.at(x, z); return !!s && s.half > 2; }, drawnLand));   // no railing across a street
   const bikes = new Bikes(net, g, (x, z) => move.free(x, z) && !si.at(x, z)); scene.add(bikes.group);
@@ -174,14 +192,16 @@ async function start() {
   hud.whisper(quests.cur!.intro, 8);
 
   // the cartoon look: cel shading everywhere, ink outlines on everything solid but the ground, streets and buildings
-  const flat = new Set(['roads', 'buildings', 'grass', 'street life']);
+  const flat = new Set(['roads', 'buildings', 'grass', 'street life', 'love sign']);
   const outlined = scene.children.filter(o => !flat.has(o.name) && o.type === 'Group');
   toonify(scene, outlined, o => { let p: THREE.Object3D | null = o; while (p) { if (flat.has(p.name)) return true; p = p.parent; } return false; });
   let inkT = 0, edgeT = 0, wasNight = false;
   const blackout = new Blackout(net, pumps.spots);
   const clock = new THREE.Clock();
-  let mapT = 0;
-  (window as unknown as { rk: unknown }).rk = { THREE, d, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
+  let mapT = 0, shopT = 0, cowSaid = false;
+  const shopTag = document.createElement('div'); shopTag.id = 'shopTag'; document.body.appendChild(shopTag);
+  shopTag.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#7a1e1ee6;color:#fff4d8;font:600 14px Georgia,serif;padding:4px 12px;border-radius:6px;border:2px solid #f2c230;display:none;pointer-events:none;z-index:5';
+  (window as unknown as { rk: unknown }).rk = { THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
   const frame = (dt: number) => {
     const night = day.night;
     let speed = 0;
@@ -224,7 +244,15 @@ async function start() {
     const hit = traffic.update(dt, px, pz, night);
     if (hit && !traffic.riding) { knockX = hit.kx; knockZ = hit.kz; st.courage = Math.max(0, st.courage - 15); hurtT = 0.6; }
     people.update(dt, px, pz, night);
-    boats.update(dt, day.dark);
+    boats.update(dt, day.dark); cows.update(dt);
+    // the shop the child is standing by
+    shopT -= dt;
+    if (shopT <= 0) {
+      shopT = 0.4; let nm = '';
+      for (const s of shops.list) if (Math.hypot(s.x - px, s.z - pz) < 12) { nm = s.name; break; }
+      shopTag.textContent = nm; shopTag.style.display = nm ? 'block' : 'none';
+      const cw = cows.near(px, pz, 4); if (cw && !cowSaid) { hud.whisper(['Moo. The cow does not move, men. Go around.', 'Aay deva, a cow sitting right in the middle!', 'Careful, baba, she is chewing. Don\'t disturb.'][Math.floor(Math.random() * 3)], 3); cowSaid = true; } else if (!cw) cowSaid = false;
+    }
     const pumpLine = pumps.update(dt, px, pz, st.oil);
     if (pumpLine) {
       st.oil = 100; sfx.pick();
