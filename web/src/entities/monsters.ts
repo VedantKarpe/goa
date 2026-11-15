@@ -22,7 +22,8 @@ export class Monsters {
   list: Demon[] = [];
   private spirit: THREE.Group;
   spiritT = 0;
-  rules: SpiritRules = { ...BASE };   // tonight's spirit: how many, how fast, what they can do
+  rules: SpiritRules = { ...BASE };
+  level = 0;                          // tonight's bhoot level (0: no tag)   // tonight's spirit: how many, how fast, what they can do
   private seed = 1337;
   private rnd = () => (this.seed = (this.seed * 16807) % 2147483647) / 2147483647;
 
@@ -70,6 +71,7 @@ export class Monsters {
     if (this.list.length < want && this.rnd() < dt * 1.5) { const d = this.make(cx, cz); if (d) this.list.push(d); }
     for (const d of [...this.list]) {
       d.t += dt;
+      if (this.level > 0 && !d.obj.children.some(c => c.userData.tag === this.level)) { d.obj.children.filter(c => c.userData.tag).forEach(c => d.obj.remove(c)); this.tag(d.obj); }
       const dx = cx - d.x, dz = cz - d.z, dist = Math.hypot(dx, dz) || 1;
       const leaving = !night || d.banish > 0 || dist > 220;
       d.fade = Math.max(0, Math.min(1, d.fade + (leaving ? -dt : dt * 0.6)));
@@ -77,7 +79,7 @@ export class Monsters {
       // creep toward the child; held off by the torch beam and by street light
       let sp = leaving ? -6 : dist < 25 ? R.lunge : R.speed;   // they close in, and lunge when near
       if (!leaving && lampLit && dist < R.reach) sp = -1.5;   // the torch only just holds them off
-      if (!leaving && R.freezeSeen && seen(d.x, d.z)) sp = 0;   // the Mhamzo cannot move while you watch it
+      if (!leaving && R.freezeSeen && seen(d.x, d.z)) sp = 0;   // a night-1 bhoot cannot move while you watch it
       const nx = d.x + (dx / dist) * sp * dt, nz = d.z + (dz / dist) * sp * dt;
       if (litAt(nx, nz) && sp > 0) { /* stays at the light's edge */ } else { d.x = nx; d.z = nz; }
       d.obj.position.set(d.x + Math.sin(d.t * 2) * 0.4, this.g.heightAt(d.x, d.z) + 0.3 + Math.sin(d.t * 3) * 0.3, d.z);
@@ -85,10 +87,11 @@ export class Monsters {
       for (const c of d.obj.children) {
         const k = c.userData.k as number | undefined;
         if (k !== undefined) { c.position.x = Math.sin(d.t * 1.3 + k) * 0.7; c.position.z = Math.cos(d.t * 1.1 + k * 1.7) * 0.7; (c as THREE.Sprite).material.rotation = d.t * 0.4 + k; (c as THREE.Sprite).material.opacity = (0.75 - k * 0.04) * d.fade; }
+        else if (c.userData.tag) (c as THREE.Sprite).material.opacity = d.fade;
         else if (c.userData.eye) (c as THREE.Sprite).material.opacity = d.fade * (0.75 + Math.sin(d.t * 9) * 0.25);
       }
       d.obj.scale.setScalar(0.4 + d.fade * 0.8);
-      d.obj.visible = !R.hideBeyond || dist < R.hideBeyond || leaving;   // the Khavis hide in the crowd until close
+      d.obj.visible = !R.hideBeyond || dist < R.hideBeyond || leaving;   // the market bhoots hide in the crowd until close
       if (!leaving && dist < 4) { hurt += R.hurt * dt; }
     }
     // the spirit: rises beside the child, then fades
@@ -100,6 +103,13 @@ export class Monsters {
       for (const d of this.list) if (Math.hypot(d.x - cx, d.z - cz) < 120) d.banish = 1;
     } else this.spirit.visible = false;
     return hurt;
+  }
+
+  // its level, floating over it ("Lv 3")
+  private tag(obj: THREE.Group) {
+    const cv = document.createElement('canvas'); cv.width = 128; cv.height = 48; const c = cv.getContext('2d')!;
+    c.fillStyle = '#2a0a1ecc'; c.fillRect(0, 0, 128, 48); c.fillStyle = '#ff9a5a'; c.font = '700 30px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(`Lv ${this.level}`, 64, 26);
+    const t = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthWrite: false })); t.scale.set(3.6, 1.35, 1); t.position.y = 7.5; t.userData.tag = this.level; obj.add(t);
   }
 
   /** Banish the nearest demon within reach; true if one was. */

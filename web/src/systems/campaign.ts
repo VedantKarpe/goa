@@ -16,7 +16,7 @@ export interface SpiritRules {
   hurt: number;        // courage lost a second in their touch
   reach: number;       // how far the torch holds them off (m)
   hideBeyond: number;  // unseen until this close (0: always seen)
-  freezeSeen: boolean; // they cannot move while you look at them (the Mhamzo)
+  freezeSeen: boolean; // they cannot move while you look at them (night 1)
   dodge: number;       // chance a banish misses
   tint: number;        // the smoke's colour
 }
@@ -26,8 +26,8 @@ export interface Night {
   intro: string; hint: string;
   rules: Partial<SpiritRules>;
   drain: number;            // torch battery used a second
-  fog?: boolean;            // the Devchar's fog (Altinho)
-  moves?: boolean;          // the Devchar moves the piece once, when you come near
+  fog?: boolean;            // the bhoot's fog (Altinho)
+  moves?: boolean;          // the bhoot moves the piece once, when you come near
   dueBy?: number;           // the piece fades at this time (minutes past midnight of the evening, e.g. 23:00 = 1380)
   blackout?: boolean;       // the night begins dark; Uncle at the battery shop has the piece
   noTorch?: boolean;        // no torch: the glowing cows show the way
@@ -37,31 +37,31 @@ export interface Night {
 export const BASE: SpiritRules = { want: 12, speed: 6, lunge: 10, hurt: 22, reach: 8, hideBeyond: 0, freezeSeen: false, dodge: 0, tint: 0x2a1830 };
 
 export const NIGHTS: Night[] = [
-  { title: 'Night 1 · Fontainhas', spirit: 'the Mhamzo', area: 'Fontainhas',
-    intro: 'Aay deva! The church bell is stolen, and the spirits are loose. In Fontainhas walks the Mhamzo, the old ghost of the lanes. It only moves when you are not looking at it, baba. Keep your eyes on it! Find the first piece of the bell and bring it to Church Square before morning.',
-    hint: 'Turn the view to face a Mhamzo and it freezes.',
+  { title: 'Night 1 · Fontainhas', spirit: 'level 1 bhoots', area: 'Fontainhas',
+    intro: 'Aay deva! The church bell is stolen, and the spirits are loose. In the lanes of Fontainhas the bhoots are out. They only move when you are not looking at them, baba. Keep your eyes on them! Find the first piece of the bell and bring it to Church Square before morning.',
+    hint: 'Turn the view to face a bhoot and it freezes.',
     rules: { want: 6, speed: 7, lunge: 12, hurt: 16, freezeSeen: true, tint: 0xd8dcd8 }, drain: 0.3 },
-  { title: 'Night 2 · Altinho', spirit: 'the Devchar', area: 'Altinho',
-    intro: 'Up on Altinho the Devchar is playing his tricks. He brings the fog down on the hill, and he moves things when you come close, men. The second piece of the bell is somewhere up there. Bring it to Church Square before morning.',
-    hint: 'The Devchar moves the piece once. Follow the pin again.',
+  { title: 'Night 2 · Altinho', spirit: 'a level 2 trickster bhoot', area: 'Altinho',
+    intro: 'Up on Altinho a trickster bhoot is playing games. He brings the fog down on the hill, and he moves things when you come close, men. The second piece of the bell is somewhere up there. Bring it to Church Square before morning.',
+    hint: 'The bhoot moves the piece once. Follow the pin again.',
     rules: { want: 8, speed: 7, lunge: 11, hurt: 18, tint: 0x24301c }, drain: 0.35, fog: true, moves: true },
-  { title: 'Night 3 · The Market', spirit: 'the Khavis', area: 'Panjim Bazaar',
-    intro: 'In the bazaar the Khavis hides among the crowds and the cows. You will not see them until they are right next to you. And hurry: the third piece fades at 11 o\'clock. Get it and bring it to Church Square.',
+  { title: 'Night 3 · The Market', spirit: 'level 3 bhoots', area: 'Panjim Bazaar',
+    intro: 'In the bazaar the bhoots hide among the crowds and the cows. You will not see them until they are right next to you. And hurry: the third piece fades at 11 o\'clock. Get it and bring it to Church Square.',
     hint: 'The piece fades at 11 pm.',
     rules: { want: 10, speed: 7, lunge: 12, hurt: 20, hideBeyond: 16, tint: 0x3a1010 }, drain: 0.4, dueBy: 23 * 60 },
-  { title: 'Night 4 · The River', spirit: 'the river bhoots', area: 'Campal',
+  { title: 'Night 4 · The River', spirit: 'level 4 river bhoots', area: 'Campal',
     intro: 'The casino lights have called the river bhoots out of the Mandovi. They are fast, and some of them laugh at your torch. The fourth piece is far off at Campal. Catch a pilot or take a cycle, baba, it is a long way.',
     hint: 'Far off: ride a pilot (F near the road) or take a cycle.',
     rules: { want: 12, speed: 9, lunge: 13, hurt: 22, dodge: 0.25, tint: 0x0e2a3a }, drain: 0.45 },
-  { title: 'Night 5 · Blackout', spirit: 'the shadow', area: '',
+  { title: 'Night 5 · Blackout', spirit: 'level 5 bhoots', area: '',
     intro: 'Tonight Panjim goes dark the moment the sun sets. Uncle at the battery shop has the fifth piece. Follow the one lit street to him. They know you are coming.',
     hint: 'Follow the only lit street to Uncle.',
     rules: { want: 12, speed: 8, lunge: 13, hurt: 24, dodge: 0.3, tint: 0x111122 }, drain: 0.5, blackout: true },
-  { title: 'Night 6 · Ourém Creek', spirit: 'the creek spirits', area: 'Patto',
+  { title: 'Night 6 · Ourém Creek', spirit: 'level 6 creek bhoots', area: 'Patto',
     intro: 'By Ourém creek even a torch will not work, men. But the cows know the way. Follow the glowing cows to the sixth piece at Patto: stay near them and the spirits keep back.',
     hint: 'No torch. Stay close to the glowing cows.',
     rules: { want: 12, speed: 8, lunge: 12, hurt: 24, dodge: 0.35, tint: 0x1c2a14 }, drain: 0, noTorch: true },
-  { title: 'Night 7 · The Bell', spirit: 'every spirit', area: 'Altinho',
+  { title: 'Night 7 · The Bell', spirit: 'level 7 bhoots, all of them', area: 'Altinho',
     intro: 'Six pieces, baba! But the thief has come back for them: the whole bell is up on Altinho, where he hid it. Every spirit in Panjim is out tonight. Bring it down to Church Square and ring it before midnight, and Panjim is free.',
     hint: 'Get the bell on Altinho, ring it at Church Square before 12.',
     rules: { want: 16, speed: 8, lunge: 14, hurt: 26, dodge: 0.35, hideBeyond: 0, tint: 0x2a0a2a }, drain: 0.5, final: true },
@@ -129,10 +129,10 @@ export class Campaign {
     const n = this.cur; if (!n || !this.active) return null;
     this.mark.rotation.y += dt;
     const d = Math.hypot(this.piece.x - cx, this.piece.z - cz);
-    // the Devchar's trick: the first time you get close, the piece jumps away
+    // the trickster's trick: the first time you get close, the piece jumps away
     if (n.moves && !this.moved && this.phase === 'seek' && d < 25) {
       this.moved = true; this.piece = this.spotNear(n.area, this.night + 7, 120, 220); this.place();
-      return { msg: 'Ha ha! The Devchar laughs in the fog. The piece is gone... there! Further up the hill. Follow the pin again.' };
+      return { msg: 'Ha ha! The bhoot laughs in the fog. The piece is gone... there! Further up the hill. Follow the pin again.' };
     }
     // the market's piece fades at 11
     if (n.dueBy && this.phase === 'seek' && min >= n.dueBy && min < 24 * 60) return this.lose('Too late, baba. The piece faded away at 11. Tomorrow night, try again, and quicker.');
@@ -140,7 +140,7 @@ export class Campaign {
     if (n.final && min < 6 * 60) return this.lose('Midnight struck, and the bell is still silent. The spirits win tonight. Come back tomorrow evening.');
     if (this.phase === 'seek' && d < (n.blackout ? 11 : 4.5)) {
       this.phase = 'carry'; this.piece = { ...this.square }; this.place();
-      return { msg: n.final ? 'You have the bell! Down the hill to Church Square, quick, before midnight!' : `You have the piece! Now to Church Square, quick, before morning. ${n.spirit === 'the Mhamzo' ? 'And keep looking at them!' : ''}`, big: true };
+      return { msg: n.final ? 'You have the bell! Down the hill to Church Square, quick, before midnight!' : `You have the piece! Now to Church Square, quick, before morning. ${this.night === 0 ? 'And keep looking at them!' : ''}`, big: true };
     }
     if (this.phase === 'carry' && d < 8) return this.win();
     return null;
@@ -150,7 +150,7 @@ export class Campaign {
     const n = this.cur!;
     this.phase = 'won'; this.mark.visible = false; this.night++; this.save();
     if (n.final) return { msg: 'DONG... DONG... DONG! The bell rings out over Panjim. The spirits melt into the river mist, and the whole town comes out to see. Dev borem korum, baba! You saved Panjim.', big: true, won: true };
-    return { msg: `Piece ${this.night} of 6 is back at the church! The ${n.spirit.replace(/^the /, '')} slinks off into the dark. Rest now, baba. Tomorrow night will be harder.`, big: true, won: true };
+    return { msg: `Piece ${this.night} of 6 is back at the church! The bhoots slink off into the dark. Rest now, baba. Tomorrow night will be harder.`, big: true, won: true };
   }
 
   private lose(msg: string) { this.phase = 'lost'; this.mark.visible = false; return { msg, big: true, lost: true }; }

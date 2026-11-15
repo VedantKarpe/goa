@@ -289,7 +289,7 @@ async function start() {
       if (!night) { blackout.end(); day.setLitStreets(null); hud.whisper('Morning. The lights go off by themselves, and the sun charges your torch.', 4); }
     }
     // tonight's spirits; good deeds (points) buy a stronger torch that holds them further off
-    monsters.rules = campaign.rules; monsters.rules.reach += st.points >= 300 ? 4 : st.points >= 150 ? 2 : 0;
+    monsters.rules = campaign.rules; monsters.level = campaign.active ? campaign.night + 1 : 0; monsters.rules.reach += st.points >= 300 ? 4 : st.points >= 150 ? 2 : 0;
     const hurt = monsters.update(dt, px, pz, night, lampLit, (x, z) => day.litAt(x, z) || (noTorch && cows.byGuide(x, z)), inView);
     if (hurt > 0) { st.courage = Math.max(0, st.courage - hurt); if (hurtT <= 0) { sfx.hurt(); hurtT = 0.4; } }
     // the torch drains its battery at night and recharges by day; standing in light restores courage
@@ -347,7 +347,7 @@ async function start() {
     const sa = Math.max(0.2, Math.min(Math.PI - 0.2, (day.min - 360) / 720 * Math.PI)), sh = Math.max(0.6, Math.sin(sa))   // never so low that poles and palms cast long stripes across the town;
     sun.position.set(px + Math.cos(sa) * 260, py + sh * 260, pz + 80); sun.target.position.set(px, py, pz);
     const camD = rig.camera.position.distanceTo(child.obj.position); const fog = scene.fog as THREE.Fog; fog.near = Math.max(260, camD * 1.5); fog.far = Math.max(900, camD * 4.5);
-    if (campaign.active && campaign.cur?.fog && night) { fog.near = Math.max(20, camD * 0.6); fog.far = Math.max(150, camD * 2); }   // the Devchar's fog   // zoomed in close, the haze still starts far off
+    if (campaign.active && campaign.cur?.fog && night) { fog.near = Math.max(20, camD * 0.6); fog.far = Math.max(150, camD * 2); }   // the bhoot's fog   // zoomed in close, the haze still starts far off
     let near = '', nd = 1e9;
     for (const p of places) { const dd = Math.hypot(p.X - px, p.Z - pz); if (dd < nd) { nd = dd; near = p.n; } }
     map.reveal(px, pz, 6);
