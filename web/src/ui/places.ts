@@ -7,6 +7,7 @@ import { T, type PanjimData, type Ground } from '../world/data';
 export interface Place { name: string; x: number; z: number; note: string; seen: boolean }
 
 const NOTES: Record<string, string> = {
+  'Miramar': 'The beach, men! Evening walk, bhel-puri, and the sun going into the sea.',
   'Mandovi': 'The big river, men. Casino boats at night, ferries to Betim in the day.',
   'Panaji': 'Our capital city. Small only, but everybody knows everybody.',
   'Church Square': 'The garden in front of the big white church. Everybody meets here.',
@@ -41,6 +42,8 @@ export class Places {
   private panel = document.getElementById('places')!;
   private arrow = document.getElementById('arrow')!;
   private beam: THREE.Mesh;
+  /** Take a pilot to a place (set by the game). */
+  onTravel: (p: Place) => void = () => {};
 
   constructor(d: PanjimData, private g: Ground, scene: THREE.Scene, private onPick: (p: Place) => void) {
     this.list = [
@@ -55,10 +58,13 @@ export class Places {
   toggle() {
     const open = this.panel.classList.toggle('open');
     if (!open) return;
-    const row = (p: Place, i: number) => `<button data-i="${i}" class="${p === this.target ? 'on' : ''}"><b>${p.seen ? p.name : p.name + ' <em>· not yet visited</em>'}</b><span>${p.note}</span></button>`;
-    this.panel.innerHTML = `<div class="ph"><h2>Places in Panjim</h2><span>${this.list.filter(p => p.seen).length} of ${this.list.length} visited · pick one to be guided there</span><button class="x" aria-label="Close">✕</button></div><div class="pl">${this.list.map(row).join('')}</div>`;
+    const row = (p: Place, i: number) => `<div class="prow" style="display:flex;gap:6px;align-items:stretch"><button data-i="${i}" class="${p === this.target ? 'on' : ''}" style="flex:1 1 auto"><b>${p.seen ? p.name : p.name + ' <em>· not yet visited</em>'}</b><span>${p.note}</span></button><button data-go="${i}" title="Take a pilot there" style="flex:0 0 64px;font-weight:700">Go ›</button></div>`;
+    this.panel.innerHTML = `<div class="ph"><h2>Places in Panjim</h2><span>${this.list.filter(p => p.seen).length} of ${this.list.length} visited · pick one to be guided there, or Go to take a pilot</span><button class="x" aria-label="Close">✕</button></div><div class="pl">${this.list.map(row).join('')}</div>`;
     this.panel.querySelector('.x')!.addEventListener('click', () => this.panel.classList.remove('open'));
-    this.panel.querySelectorAll<HTMLButtonElement>('.pl button').forEach(b => b.addEventListener('click', () => {
+    this.panel.querySelectorAll<HTMLButtonElement>('.pl button[data-go]').forEach(b => b.addEventListener('click', () => {
+      this.panel.classList.remove('open'); this.onTravel(this.list[+b.dataset.go!]);
+    }));
+    this.panel.querySelectorAll<HTMLButtonElement>('.pl button[data-i]').forEach(b => b.addEventListener('click', () => {
       const p = this.list[+b.dataset.i!]; this.target = this.target === p ? null : p;
       this.panel.classList.remove('open'); if (this.target) this.onPick(this.target);
     }));

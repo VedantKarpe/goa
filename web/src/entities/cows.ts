@@ -50,6 +50,9 @@ export class Cows {
     }
   }
 
+  /** A cow at (x, z), lying or standing (the beach cows). */
+  addAt(x: number, z: number, lie: boolean) { if (this.free(x, z)) this.add(x, z, lie, false); }
+
   /** Glowing cows standing along a way (the creek night): they light the path, and spirits keep back from them. */
   guide(points: { x: number; z: number }[]) {
     this.clearGuides();

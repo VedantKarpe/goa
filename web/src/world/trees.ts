@@ -81,7 +81,7 @@ export function buildTrees(d: PanjimData, g: Ground, bi: BuildingIndex, si: Stre
   place(treeGeo(3.5, 3.4, 0x467a3a), spots('F', 2), [0.8, 1.4]);
   place(treeGeo(1.2, 2.4, 0x2a4a30), spots('M', 1), [0.7, 1.1]);
   // coconut palms over the open ground and along the sand, flowering bushes in the gardens
-  place(palmGeo(), [...spots('G', 0.35), ...spots('S', 1), ...spots('B', 1)], [0.9, 1.25]);
+  place(palmGeo(), [...spots('G', 0.35), ...spots('S', 0.06), ...spots('B', 0.06)], [0.9, 1.25]);   // a few palms on the sand: Miramar is open beach, casuarinas behind it
   place(bushGeo(), spots('G', 0.9), [0.8, 1.2]);
   // shade trees in the gardens and open plots, and tufts of tall grass everywhere green
   place(treeGeo(3.2, 3.0, 0x4f8a3c), spots('G', 0.35), [0.8, 1.3]);

@@ -33,6 +33,7 @@ import { buildPromenade } from './world/promenade';
 import { Cows } from './entities/cows';
 import { buildShops, buildLoveSign } from './world/shops';
 import { Campaign } from './systems/campaign';
+import { Miramar } from './world/miramar';
 
 async function start() {
   const [d] = await Promise.all([loadPanjim(), loadModels()]);
@@ -108,12 +109,16 @@ async function start() {
   const monsters = new Monsters(g, move); scene.add(monsters.group);
   const day = new Clock(net, g, (x, z) => bi.solid(x, z, 1.2)); scene.add(day.lamps);
   const quests = new Quests(d, net, g, blds.list, px, pz, (x, z) => move.free(x, z)); scene.add(quests.group);
+  // Miramar beach, with cows resting on the sand
+  const miramar = new Miramar(d, g, (x, z) => move.free(x, z)); scene.add(miramar.group);
+  if (miramar.sand.length) d.places.push(['Miramar', miramar.centre.x / T, miramar.centre.z / T]);
   // shops from OpenStreetMap, the famous places to eat also in the Places guide
   const shops = buildShops(d, g, roads.segs); scene.add(shops.group);
   for (const s of shops.list) if (s.famous) d.places.push([s.name, s.x / T, s.z / T]);
   // the cows: some resting by the market and Church Square, the rest out on the streets
   const restAt = d.places.filter(([n]) => n === 'Panjim Bazaar' || n === 'Church Square').map(([, x, y]) => [x * T, y * T] as [number, number]);
   const cows = new Cows(net, g, (x, z) => move.free(x, z), restAt); scene.add(cows.group); traffic.cows = cows.list;
+  for (let i = 0; i < miramar.sand.length && i < 60; i += 9) { const [x, z] = miramar.sand[i]; cows.addAt(x + 3, z + 2, i % 2 === 0); }
   // "I love Goa" on the riverfront: the open bank west of the Old Secretariat, where the road leaves room by the water
   {
     let best: [number, number] | null = null, bd = 1e9;
@@ -130,7 +135,7 @@ async function start() {
   const places2 = new Places(d, g, scene, p => hud.whisper(`Okay, ${p.name}. Follow the green light, baba. ${p.note}`, 6));
   const boats = new Boats(g, d.casinos ?? []); scene.add(boats.group);
   const pumps = new Pumps(net, g, (x, z) => !bi.solid(x, z, 9) && !g.isWet(x, z) && !si.at(x, z)); scene.add(pumps.group);
-  const home: [number, number] = [px, pz];
+  let home: [number, number] = [px, pz];
 
   const rig = new CameraRig(), input = new Input(renderer.domElement), hud = new Hud();
   const st = { courage: 100, oil: 100, points: 0, lamp: true };
@@ -192,7 +197,6 @@ async function start() {
   const resize = () => { renderer.setSize(app.clientWidth, app.clientHeight, false); };
   addEventListener('resize', resize); resize();
   document.getElementById('loading')!.remove();
-  hud.whisper(quests.cur!.intro, 8);
 
   // the cartoon look: cel shading everywhere, ink outlines on everything solid but the ground, streets and buildings
   const flat = new Set(['roads', 'buildings', 'grass', 'street life', 'love sign']);
@@ -223,9 +227,44 @@ async function start() {
   let mapT = 0, shopT = 0, cowSaid = false;
   const shopTag = document.createElement('div'); shopTag.id = 'shopTag'; document.body.appendChild(shopTag);
   shopTag.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#7a1e1ee6;color:#fff4d8;font:600 14px Georgia,serif;padding:4px 12px;border-radius:6px;border:2px solid #f2c230;display:none;pointer-events:none;z-index:5';
-  (window as unknown as { rk: unknown }).rk = { campaign, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
+  (window as unknown as { rk: unknown }).rk = { miramar, campaign, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
+  // the sun's disc (a soft glowing sprite, not fogged)
+  const sunDisc = (() => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128; const c = cv.getContext('2d')!;
+    const gr = c.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.42, 'rgba(255,255,255,1)'); gr.addColorStop(0.5, 'rgba(255,255,255,.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = gr; c.fillRect(0, 0, 128, 128);
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), fog: false, depthWrite: false, transparent: true }));
+    s.renderOrder = -1; scene.add(s); return s;
+  })();
+  // each new day starts somewhere else in Panjim, with a different task (and the day number is kept)
+  const STARTS = ['Church Square', 'Miramar', 'Fontainhas', 'Campal', 'Panjim Bazaar', 'Altinho', 'Patto'];
+  let dayNo = 0;   // days this visit (nothing is saved)
+  const startDay = (first: boolean, before = '') => {
+    const pool = d.places.filter(q => STARTS.includes(q[0]) || q[0] === 'Miramar'), pick = pool[Math.floor(Math.random() * pool.length)];
+    const name = pick?.[0] ?? 'Church Square', p = pick;
+    if (p) {
+      let x = p[1] * T, z = p[2] * T;
+      for (let r = 0; r < 300 && !move.free(x, z); r += 3) { x = p[1] * T + Math.cos(r) * r; z = p[2] * T + Math.sin(r) * r; }
+      if (move.free(x, z)) { if (traffic.riding) traffic.hopOff(); if (bikes.riding) bikes.park(px, pz); px = x; pz = z; home = [x, z]; }
+    }
+    const task = quests.startDay(Math.floor(Math.random() * 4));
+    hud.whisper(`${before}${first ? 'Good afternoon' : 'Good morning'}, baba! Day ${dayNo + 1}: you are in ${name} today. ${task ?? ''}`, 10, true);
+  };
+  places2.onTravel = p => {
+    if (campaign.active && day.night) { hud.whisper('No pilot will go out tonight, baba. Too many bhoots on the road. Walk, or ride a cycle.', 4, true); return; }
+    let x = p.x, z = p.z;
+    for (let r = 0; r < 300 && !move.free(x, z); r += 3) { x = p.x + Math.cos(r) * r; z = p.z + Math.sin(r) * r; }
+    if (!move.free(x, z)) { hud.whisper(`The pilot can't find a way to ${p.name}, men.`, 3); return; }
+    if (traffic.riding) traffic.hopOff(); if (bikes.riding) bikes.park(px, pz);
+    px = x; pz = z; day.min = Math.min(day.min + 10, 1439);   // the ride takes ten minutes
+    hud.whisper(`The pilot drops you at ${p.name}. "Thirty rupees, baba. Okay okay, for you twenty." ${p.note}`, 6, true);
+  };
+  day.min = 15 * 60;   // start in the afternoon: a little daylight to explore before dusk
+  startDay(true);
   const frame = (dt: number) => {
     const night = day.night;
+    // a night passes three times faster than a day; once tonight's story is won (or lost), on to morning quickly
+    day.rate = night ? (campaign.phase === 'won' || campaign.phase === 'lost' ? 12 : 3) : 2;
     let speed = 0;
     if (traffic.riding) {
       // riding: the child sits on the vehicle
@@ -267,7 +306,7 @@ async function start() {
     const hit = traffic.update(dt, px, pz, night);
     if (hit && !traffic.riding) { knockX = hit.kx; knockZ = hit.kz; st.courage = Math.max(0, st.courage - 15); hurtT = 0.6; }
     people.update(dt, px, pz, night);
-    boats.update(dt, day.dark); cows.update(dt);
+    boats.update(dt, day.dark); cows.update(dt); miramar.update(dt, performance.now() / 1000);
     // the shop the child is standing by
     shopT -= dt;
     if (shopT <= 0) {
@@ -308,7 +347,9 @@ async function start() {
         } else { const m = quests.startNight(px, pz); if (m) hud.whisper(m, 8); }
       } else {
         quests.endNight(); cows.clearGuides();
-        const m = campaign.endNight(); if (m) { hud.whisper(m, 7, true); sfx.hurt(); }
+        dayNo++;
+        const m = campaign.endNight(); if (m) sfx.hurt();
+        startDay(false, m ? m + ' ' : '');
       }
       wasNight = night;
     }
@@ -346,6 +387,14 @@ async function start() {
     // the sun crosses from east (morning) to west (evening), low early and late
     const sa = Math.max(0.2, Math.min(Math.PI - 0.2, (day.min - 360) / 720 * Math.PI)), sh = Math.max(0.6, Math.sin(sa))   // never so low that poles and palms cast long stripes across the town;
     sun.position.set(px + Math.cos(sa) * 260, py + sh * 260, pz + 80); sun.target.position.set(px, py, pz);
+    // the sun itself, low over the sea in the evening: yellow, then deep orange as it goes down
+    const eve = Math.max(0, Math.min(1, (day.min - 990) / 130));
+    sunDisc.visible = day.min > 900 && day.min < 1150;
+    if (sunDisc.visible) {
+      const cam = rig.camera.position, dirS = new THREE.Vector3(Math.cos(sa), 0.012 + 0.05 * (1 - eve), 0.12).normalize();
+      sunDisc.position.copy(cam).addScaledVector(dirS, 850); sunDisc.scale.setScalar(70 + eve * 40);
+      (sunDisc.material as THREE.SpriteMaterial).color.setRGB(1, 0.85 - eve * 0.45, 0.45 - eve * 0.35);
+    }
     const camD = rig.camera.position.distanceTo(child.obj.position); const fog = scene.fog as THREE.Fog; fog.near = Math.max(260, camD * 1.5); fog.far = Math.max(900, camD * 4.5);
     if (campaign.active && campaign.cur?.fog && night) { fog.near = Math.max(20, camD * 0.6); fog.far = Math.max(150, camD * 2); }   // the bhoot's fog   // zoomed in close, the haze still starts far off
     let near = '', nd = 1e9;

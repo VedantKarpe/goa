@@ -96,6 +96,15 @@ export class Quests {
     this.show();
   }
 
+  /** A new day: today's task is a different one from yesterday's (they take turns). */
+  startDay(day: number): string | null {
+    if (this.night || !this.list.length) return null;
+    this.i = day % this.list.length;
+    for (const s of this.list[this.i].spots) s.done = false;
+    this.show();
+    return this.list[this.i].intro;
+  }
+
   /** The task now in hand: the night's rescue while it lasts, otherwise the day's next task. */
   get cur(): Quest | null { return this.night ?? this.list[this.i] ?? null; }
   get target(): Spot | null {

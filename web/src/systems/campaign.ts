@@ -6,7 +6,7 @@
 // spirit is out, and the bell must be rung before midnight.
 //
 // A night is won (the piece is saved, the next night is harder), or lost: morning comes first, or the piece fades.
-// A lost night is played again the next evening. Progress is kept in the browser.
+// A lost night is played again the next evening. Nothing is saved: each visit starts the story fresh.
 import * as THREE from 'three';
 
 export interface SpiritRules {
@@ -80,7 +80,6 @@ export class Campaign {
 
   constructor(private places: Map<string, { x: number; z: number }>, private free: (x: number, z: number) => boolean, private heightAt: (x: number, z: number) => number) {
     this.group.name = 'campaign';
-    try { this.night = Math.max(0, Math.min(7, Number(localStorage.getItem('goa.night') ?? 0) || 0)); } catch { /* no storage */ }
     this.square = places.get('Church Square') ?? { x: 0, z: 0 };
     // the piece: a golden bell shard in a column of warm light you can see across the town
     this.mark = new THREE.Group();
@@ -98,7 +97,7 @@ export class Campaign {
   /** The spirits' rules tonight. */
   get rules(): SpiritRules { return { ...BASE, ...(this.active ? this.cur?.rules : {}) }; }
 
-  private save() { try { localStorage.setItem('goa.night', String(this.night)); } catch { /* no storage */ } }
+  private save() { /* progress is not kept between visits: every visit starts at night 1 */ }
   reset() { this.night = 0; this.phase = 'waiting'; this.mark.visible = false; this.save(); }
 
   // a walkable spot some way from a place's centre (the same each time the night is played)
