@@ -142,7 +142,7 @@ export class Traffic {
       const off = w * (w >= 9 ? 0.24 : 0.2);   // keep left: offset to the left of the direction of travel
       const lx = p.dz, lz = -p.dx;
       v.x = p.x + lx * off; v.z = p.z + lz * off; v.hx += (p.dx - v.hx) * Math.min(1, dt * 8); v.hz += (p.dz - v.hz) * Math.min(1, dt * 8);
-      const deck = this.net.edge(v.e).deck;
+      const deck = this.net.deckY(v.e, v.s);
       v.obj.position.set(v.x, deck !== null ? deck + 0.2 : this.g.heightAt(v.x, v.z) + 0.25, v.z);
       v.obj.rotation.y = -Math.atan2(v.hz, v.hx);
     }

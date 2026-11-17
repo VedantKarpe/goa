@@ -28,7 +28,7 @@ export function buildStreetLife(net: Network, g: Ground, free: (x: number, z: nu
       const x = p.x + p.dz * off * sd, z = p.z - p.dx * off * sd;
       // never on the river side: that kerb is the promenade (or the bank)
       let wet = false; for (let k = 2; k <= 30 && !wet; k += 4) if (g.landAt(x + p.dz * sd * k, z - p.dx * sd * k) < 0.5) wet = true;
-      if (wet) continue;
+      if (wet || !free(x, z)) continue;   // and never somewhere taken (a building, a flyover ramp over the kerb)
       const c = CAR_COLS[Math.floor(rnd() * CAR_COLS.length)], ang = -Math.atan2(p.dz, p.dx), y = Math.max(0.6, at(x, z)) + 0.2;
       const body = new THREE.BoxGeometry(4.4, 1.1, 1.9).translate(0, 0.75, 0), cab = new THREE.BoxGeometry(2.3, 0.75, 1.75).translate(-0.3, 1.65, 0), glass = new THREE.BoxGeometry(2.35, 0.5, 1.8).translate(-0.3, 1.65, 0);
       const parts = [painted(body, c), painted(cab, c), painted(glass, 0x1b2430)];

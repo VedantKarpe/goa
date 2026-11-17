@@ -116,3 +116,33 @@ export function bridgeDeck(g: Ground, line: [number, number][], flags: number): 
   if (L < 160 && !(flags & 8)) return ends;
   return Math.max(5, ends + 0.1) + ((flags & 8) ? 14 : 0);
 }
+
+/** Height profiles for every bridge (keyed by its line in the map data): a function of the distance along the line.
+ *  A bridge rises from road level over a ramp where it meets an ordinary road, and stays at the shared height where it
+ *  joins another bridge piece, so flyovers made of several pieces run as one deck. A short creek bridge between two
+ *  ordinary roads stays level with them. */
+export function bridgeProfiles(d: PanjimData, g: Ground): Map<Flat, (s: number) => number> {
+  const key = (x: number, y: number) => `${Math.round(x * 50)},${Math.round(y * 50)}`;
+  const B = d.r.filter(r => (r[2] & 1) !== 0).map(r => {
+    const line = pts(r[0]).map(([x, y]) => [x * T, y * T] as [number, number]);
+    let L = 0; for (let i = 1; i < line.length; i++) L += Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]);
+    const p = pts(r[0]);
+    return { f: r[0], flags: r[2], line, L, k0: key(p[0][0], p[0][1]), k1: key(p[p.length - 1][0], p[p.length - 1][1]), D: 0 };
+  });
+  const at = new Map<string, number[]>(); B.forEach((b, i) => { for (const k of [b.k0, b.k1]) { const a = at.get(k) ?? []; a.push(i); at.set(k, a); } });
+  const ground = (p: [number, number]) => Math.max(0.6, g.heightAt(p[0], p[1])) + 0.2;
+  const joined = (b: typeof B[number], k: string) => (at.get(k) ?? []).length > 1;
+  for (const b of B) {
+    const atal = (b.flags & 8) !== 0, ends = Math.max(ground(b.line[0]), ground(b.line[b.line.length - 1]));
+    const low = b.L < 160 && !atal && !joined(b, b.k0) && !joined(b, b.k1);
+    b.D = low ? ends : Math.max(5, ends + 0.1) + (atal ? 14 : 0);
+  }
+  const out = new Map<Flat, (s: number) => number>();
+  for (const b of B) {
+    const endH = (k: string, p: [number, number]) => joined(b, k) ? Math.max(...(at.get(k) ?? []).map(i => B[i].D)) : ground(p);
+    const H0 = endH(b.k0, b.line[0]), H1 = endH(b.k1, b.line[b.line.length - 1]), D = b.D, L = b.L;
+    const ramp = Math.max(1, Math.min(120, L * 0.45)), sm = (t: number) => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
+    out.set(b.f, s => D + (H0 - D) * (1 - sm(s / ramp)) + (H1 - D) * (1 - sm((L - s) / ramp)));
+  }
+  return out;
+}

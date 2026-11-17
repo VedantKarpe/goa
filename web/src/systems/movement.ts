@@ -36,6 +36,6 @@ export class Movement {
   /** The height to stand at: a bridge's deck, or the ground. */
   standY(X: number, Z: number): number {
     const s = this.si.at(X, Z);
-    return s && s.deck !== null ? s.deck : Math.max(0.2, this.g.heightAt(X, Z));
+    return s && s.deck !== null ? (s.deckAt ? s.deckAt(X, Z) : s.deck) : Math.max(0.2, this.g.heightAt(X, Z));
   }
 }

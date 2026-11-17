@@ -1,11 +1,12 @@
 // Streets and footpaths: ribbons laid on the ground (bridges held level above the water), each kind merged into one
 // mesh. Also the lookup used to keep the streets walkable and to stand people and vehicles on bridges.
 import * as THREE from 'three';
-import { Ground, T, pts, bridgeDeck, type PanjimData } from './data';
+import { Ground, T, pts, bridgeProfiles, type PanjimData } from './data';
 import { wear } from './wear';
 
 const ROAD_K = 1.5;                 // streets are drawn 1.5 x their mapped width, as in the canvas game
-export interface Seg { ax: number; az: number; bx: number; bz: number; half: number; deck: number | null }
+export interface Seg { ax: number; az: number; bx: number; bz: number; half: number; deck: number | null; deckAt?: (X: number, Z: number) => number }
+type Deck = number | null | ((s: number) => number);
 
 /** Points every `step` metres along a line of world points. */
 function resample(line: [number, number][], step: number): [number, number][] {
@@ -18,13 +19,16 @@ function resample(line: [number, number][], step: number): [number, number][] {
 }
 
 /** A ribbon `width` metres wide along `line`, `lift` above the ground (or at `deck` height on a bridge). */
-function ribbon(line: [number, number][], width: number, g: Ground, lift: number, deck: number | null, P: number[], I: number[]) {
+function ribbon(line: [number, number][], width: number, g: Ground, lift: number, deck: Deck, P: number[], I: number[], s0 = 0) {
   const pl = resample(line, 6), base = P.length / 3, h = width / 2;
+  let acc = s0;
   for (let i = 0; i < pl.length; i++) {
+    if (i) acc += Math.hypot(pl[i][0] - pl[i - 1][0], pl[i][1] - pl[i - 1][1]);
+    const dk = typeof deck === 'function' ? deck(acc) : deck;
     const a = pl[Math.max(0, i - 1)], b = pl[Math.min(pl.length - 1, i + 1)], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
     const nx = -(b[1] - a[1]) / L, nz = (b[0] - a[0]) / L, [x, z] = pl[i];
     for (const s of [-1, 1]) {
-      const X = x + nx * h * s, Z = z + nz * h * s, y = deck !== null ? deck : Math.max(0.6, g.heightAt(X, Z)) + lift;   // a street never dips under the river at the bank
+      const X = x + nx * h * s, Z = z + nz * h * s, y = dk !== null ? dk : Math.max(0.6, g.heightAt(X, Z)) + lift;   // a street never dips under the river at the bank
       P.push(X, y, Z);
     }
     if (i) { const k = base + (i - 1) * 2; I.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
@@ -53,22 +57,55 @@ export function buildRoads(d: PanjimData, g: Ground): { group: THREE.Group; segs
   const group = new THREE.Group(); group.name = 'roads';
   const pave: number[] = [], paveI: number[] = [], asph: number[] = [], asphI: number[] = [], path: number[] = [], pathI: number[] = [], dash: number[] = [], dashI: number[] = [];
   const segs: Seg[] = [];
+  const profiles = bridgeProfiles(d, g);
+  // where roads lie on top of each other (dual carriageways, slip roads, service roads at a big junction), only the
+  // road actually underneath keeps its markings: otherwise every road's dashes are painted across the others
+  const C = 25, grid = new Map<number, [number, number, number, number, number, number][]>();
+  d.r.forEach(([f, w], ri) => {
+    const q = pts(f).map(([x, y]) => [x * T, y * T]);
+    for (let i = 1; i < q.length; i++) {
+      const sg: [number, number, number, number, number, number] = [q[i - 1][0], q[i - 1][1], q[i][0], q[i][1], w * ROAD_K / 2, ri];
+      for (let x = Math.floor((Math.min(sg[0], sg[2]) - 12) / C); x <= Math.floor((Math.max(sg[0], sg[2]) + 12) / C); x++)
+        for (let z = Math.floor((Math.min(sg[1], sg[3]) - 12) / C); z <= Math.floor((Math.max(sg[1], sg[3]) + 12) / C); z++) { const k = x * 65536 + z; let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(sg); }
+    }
+  });
+  const onOther = (x: number, z: number, self: number) => {
+    for (const [ax, az, bx, bz, h, ri] of grid.get(Math.floor(x / C) * 65536 + Math.floor(z / C)) ?? []) {
+      if (ri === self) continue;
+      const vx = bx - ax, vz = bz - az, L2 = vx * vx + vz * vz || 1, t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / L2));
+      if (Math.hypot(ax + vx * t - x, az + vz * t - z) < h - 0.3) return true;
+    }
+    return false;
+  };
+  let ri = -1;
   for (const [f, w, flags] of d.r) {
+    ri++;
     const line = pts(f).map(([x, y]) => [x * T, y * T] as [number, number]);
     if (line.length < 2) continue;
     const width = w * ROAD_K, bridge = (flags & 1) !== 0;
     // a bridge is held level: at the height of the higher of its two ends, and never lower than 5 m over the water
-    const deck = bridge ? bridgeDeck(g, line, flags) : null;
-    ribbon(line, width + (width >= 12 ? 5 : 3), g, 0.12, deck === null ? null : deck - 0.05, pave, paveI);
+    const prof = bridge ? profiles.get(f) ?? null : null;
+    const deck: Deck = prof, shift = (k: number): Deck => (prof ? (s: number) => prof(s) + k : null);
+    ribbon(line, width + (width >= 12 ? 5 : 3), g, 0.12, shift(-0.05), pave, paveI);
     ribbon(line, width, g, 0.2, deck, asph, asphI);
     // road markings: a dashed white centre line on every street wide enough for two lanes (a lane divider on the
     // one-ways), and solid white edge lines on the main roads
     if (width >= 9 && !(flags & 2)) {
       const pl = resample(line, 3);
-      for (let i = 0; i + 1 < pl.length; i += 3) ribbon([pl[i], pl[i + 1]], 0.3, g, 0.28, deck === null ? null : deck + 0.05, dash, dashI);
+      for (let i = 0; i + 1 < pl.length; i += 3) if (!onOther((pl[i][0] + pl[i + 1][0]) / 2, (pl[i][1] + pl[i + 1][1]) / 2, ri)) ribbon([pl[i], pl[i + 1]], 0.3, g, 0.28, shift(0.05), dash, dashI, i * 3);
     }
-    if (width >= 13 && !(flags & 2)) for (const sd of [-1, 1]) ribbon(offsetLine(line, sd * (width / 2 - 0.7)), 0.22, g, 0.28, deck === null ? null : deck + 0.05, dash, dashI);
-    for (let i = 1; i < line.length; i++) segs.push({ ax: line[i - 1][0], az: line[i - 1][1], bx: line[i][0], bz: line[i][1], half: width / 2 + 1, deck });
+    if (width >= 13 && !(flags & 2)) for (const sd of [-1, 1]) {
+      // the edge lines, in short pieces so a stretch over another road can be left out
+      const el = resample(offsetLine(line, sd * (width / 2 - 0.7)), 3);
+      for (let i = 0; i + 1 < el.length; i++) if (!onOther((el[i][0] + el[i + 1][0]) / 2, (el[i][1] + el[i + 1][1]) / 2, ri)) ribbon([el[i], el[i + 1]], 0.22, g, 0.28, shift(0.05), dash, dashI, i * 3);
+    }
+    let s0 = 0;
+    for (let i = 1; i < line.length; i++) {
+      const ax = line[i - 1][0], az = line[i - 1][1], bx = line[i][0], bz = line[i][1], len = Math.hypot(bx - ax, bz - az), from = s0;
+      const deckAt = prof ? (X: number, Z: number) => prof(from + Math.max(0, Math.min(len, ((X - ax) * (bx - ax) + (Z - az) * (bz - az)) / (len || 1)))) : undefined;
+      segs.push({ ax, az, bx, bz, half: width / 2 + 1, deck: prof ? Math.max(prof(from), prof(from + len)) : null, deckAt });
+      s0 += len;
+    }
   }
   for (const [f, flags] of d.p) {
     const line = pts(f).map(([x, y]) => [x * T, y * T] as [number, number]);

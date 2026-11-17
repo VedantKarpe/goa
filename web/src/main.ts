@@ -85,7 +85,7 @@ async function start() {
   const atalGlow = new THREE.MeshBasicMaterial({ color: 0xd8d6d0 });
   for (const l of d.lm) for (const [x, y] of l.at) {
     const m = rawModel(l.name); if (!m) continue;
-    const X = x * T, Z = y * T, deck = si.at(X, Z)?.deck;
+    const X = x * T, Z = y * T, sg = si.at(X, Z), deck = sg?.deckAt ? sg.deckAt(X, Z) : sg?.deck;
     m.position.set(X, deck ?? g.heightAt(X, Z), Z); m.traverse(o => { o.receiveShadow = true; }); scene.add(m);
     if (l.name === 'atalsetu') {
       // the Atal Setu pylons stand out on the skyline: drawn taller, with a strip of light up each mast that glows at night
@@ -103,12 +103,12 @@ async function start() {
   if (!move.free(px, pz)) for (let r = 2; r < 200 && !move.free(px, pz); r += 2) { px = 92 * T + r; }
 
   const net = new Network(d, g);
-  scene.add(buildStreetLife(net, g, (x, z) => move.free(x, z)));
+  scene.add(buildStreetLife(net, g, (x, z) => move.free(x, z) && (si.at(x, z)?.deck ?? null) === null));   // nothing parked on a flyover or its ramps
   const traffic = new Traffic(net, g, 48); scene.add(traffic.group);
   const signals = new Signals(net, g, (x, z) => bi.solid(x, z, 1.2)); scene.add(signals.group); traffic.signals = signals;
   const people = new People(net, g, d); scene.add(people.group);
   const monsters = new Monsters(g, move); scene.add(monsters.group);
-  const day = new Clock(net, g, (x, z) => bi.solid(x, z, 1.2)); scene.add(day.lamps);
+  const day = new Clock(net, g, (x, z) => bi.solid(x, z, 1.2) || ((si.at(x, z)?.half ?? 0) > 2.5 && si.at(x, z)?.deck === null)); scene.add(day.lamps);   // no lamp post inside a building or out on another (ground-level) road
   const quests = new Quests(d, net, g, blds.list, px, pz, (x, z) => move.free(x, z)); scene.add(quests.group);
   // the areas of Goa with their own scenery and characters (Fontainhas, Miramar...) load as the child comes near them
   const sand = beachSand(d);

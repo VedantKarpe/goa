@@ -1,9 +1,9 @@
 // The street network as a graph: a node wherever streets share a point, an edge for each piece of street between.
 // Vehicles drive it (keeping left, as in India); townspeople walk its pavements.
-import { T, pts, bridgeDeck, type PanjimData } from './data';
+import { T, pts, bridgeProfiles, type PanjimData } from './data';
 import type { Ground } from './data';
 
-export interface Edge { a: number; b: number; line: [number, number][]; len: number; width: number; oneWay: boolean; deck: number | null }
+export interface Edge { a: number; b: number; line: [number, number][]; len: number; width: number; oneWay: boolean; deck: number | null; deckAt?: (s: number) => number }
 export interface Node { x: number; z: number; out: number[] }   // out: edge ids leaving (both directions for two-way)
 
 export class Network {
@@ -15,6 +15,7 @@ export class Network {
     const key = (x: number, y: number) => `${Math.round(x * 50)},${Math.round(y * 50)}`;
     const uses = new Map<string, number>();
     const streets = d.r.filter(([f, w]) => f.length >= 4 && w >= 5);
+    const profiles = bridgeProfiles(d, g);
     for (const [f] of streets) for (const [x, y] of pts(f)) uses.set(key(x, y), (uses.get(key(x, y)) ?? 0) + 1);
     const id = new Map<string, number>();
     const node = (x: number, y: number) => {
@@ -25,18 +26,20 @@ export class Network {
     for (const [f, w, flags] of streets) {
       const p = pts(f); let start = 0;
       const bridge = (flags & 1) !== 0;
-      const deck = bridge ? bridgeDeck(g, p.map(([x, y]) => [x * T, y * T] as [number, number]), flags) : null;
+      const prof = bridge ? profiles.get(f) ?? null : null;
+      let sAlong = 0;
       for (let i = 1; i < p.length; i++) {
         if (i < p.length - 1 && (uses.get(key(p[i][0], p[i][1])) ?? 0) < 2) continue;
         const line = p.slice(start, i + 1).map(([x, y]) => [x * T, y * T] as [number, number]);
         let len = 0; for (let k = 1; k < line.length; k++) len += Math.hypot(line[k][0] - line[k - 1][0], line[k][1] - line[k - 1][1]);
         if (len > 1) {
           const a = node(p[start][0], p[start][1]), b = node(p[i][0], p[i][1]), oneWay = (flags & 4) !== 0;
-          const e = this.edges.length; this.edges.push({ a, b, line, len, width: w * 1.5, oneWay, deck });
+          const from = sAlong, deckAt = prof ? (s: number) => prof(from + s) : undefined;
+          const e = this.edges.length; this.edges.push({ a, b, line, len, width: w * 1.5, oneWay, deck: prof ? Math.max(prof(from), prof(from + len)) : null, deckAt });
           this.nodes[a].out.push(e);
           if (!oneWay) this.nodes[b].out.push(~e);   // ~e: the same edge driven backwards
         }
-        start = i;
+        sAlong += len; start = i;
       }
     }
   }
@@ -76,6 +79,9 @@ export class Network {
     const out: number[] = []; for (let v = b; v !== a && via[v] >= 0; v = via[v]) out.push(viaE[v]);
     return out.reverse();
   }
+
+  /** The deck height at distance s along edge e (in its direction of travel), or null off bridges. */
+  deckY(e: number, s: number): number | null { const E = this.edge(e); if (!E.deckAt) return E.deck; return E.deckAt(e < 0 ? E.len - s : s); }
 
   edge(e: number): Edge { return this.edges[e < 0 ? ~e : e]; }
 
