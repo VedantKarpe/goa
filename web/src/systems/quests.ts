@@ -13,7 +13,7 @@ import type { Building } from '../world/buildings';
 
 export interface Spot { x: number; z: number; name: string; done: boolean }
 type Kind = 'collect' | 'deliver' | 'catch' | 'rescue';
-interface Quest { kind: Kind; title: string; giver: string; intro: string; outro: string; spots: Spot[]; pts: number; litter?: boolean; home?: Spot }
+interface Quest { kind: Kind; title: string; giver: string; intro: string; outro: string; spots: Spot[]; pts: number; litter?: boolean; home?: Spot; at?: Spot; done?: boolean }
 interface Follower { obj: THREE.Group; x: number; z: number; spot: Spot }
 
 const DIRS = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];
@@ -37,7 +37,7 @@ function hen(): THREE.Group {
 export class Quests {
   readonly group = new THREE.Group();
   list: Quest[] = [];
-  i = 0;
+  i = -1;                                 // the task taken on (-1: none; people with a ! are waiting to be asked)
   night: Quest | null = null;            // the night's rescue, when there is one
   private nightDone = false;
   private marks: THREE.Object3D[] = [];
@@ -92,21 +92,34 @@ export class Quests {
         intro: 'Tia Rosa: "Aay deva, my hen Pinky ran off again! Catch her and bring her home, baba, please."',
         outro: 'Tia Rosa: "Pinky! Naughty girl. Dev borem korum, bhurgea, come for sorpotel on Sunday."' },
     ];
-    void home; void this.d; void this.net;
+    // where each person waits for you, with a ! over their head: Shantabai by her street, Mai near the church,
+    // Anton at the post office, Tia Rosa in her yard
+    const freeNear = (x: number, z: number): Spot => { for (let r = 0; r < 120; r += 2) for (let a = 0; a < 6.28; a += 0.7) { const X = x + Math.cos(a) * r, Z = z + Math.sin(a) * r; if (this.free(X, Z)) return { x: X, z: Z, name: '', done: false }; } return { x, z, name: '', done: false }; };
+    const po = d.lm.find(l => l.name === 'postoffice');
+    const spots = [bags[0] ?? home, { ...home, x: home.x + 25 }, po ? { x: po.at[0][0] * T + 15, z: po.at[0][1] * T, name: '', done: false } : home, henHome];
+    this.list.forEach((q, k) => { const sp = spots[k] ?? home; q.at = { ...freeNear(sp.x + 5, sp.z + 5), name: q.giver }; });
+    void this.d; void this.net;
     this.show();
   }
 
   /** A new day: today's task is a different one from yesterday's (they take turns). */
   startDay(day: number): string | null {
     if (this.night || !this.list.length) return null;
-    this.i = day % this.list.length;
-    for (const s of this.list[this.i].spots) s.done = false;
+    void day;
+    this.i = -1;
+    for (const q of this.list) { q.done = false; for (const s of q.spots) s.done = false; }
     this.show();
-    return this.list[this.i].intro;
+    return `${this.list.length} people around town need a hand today. Look for the ! on the map and talk to them.`;
   }
 
   /** The task now in hand: the night's rescue while it lasts, otherwise the day's next task. */
   get cur(): Quest | null { return this.night ?? this.list[this.i] ?? null; }
+  /** People still waiting to be helped (not taken on, not done). */
+  get waiting(): Quest[] { return this.i >= 0 || this.night ? [] : this.list.filter(q => !q.done && q.at); }
+  /** Someone waiting within talking reach. */
+  giverNear(x: number, z: number): Quest | null { return this.waiting.find(q => Math.hypot(q.at!.x - x, q.at!.z - z) < 7) ?? null; }
+  /** Take on their task. */
+  accept(q: Quest): string { this.i = this.list.indexOf(q); this.show(); return q.intro; }
   get target(): Spot | null {
     const q = this.cur; if (!q) return null;
     if (q.kind === 'catch') return this.henAt.caught ? q.home! : { x: this.henAt.x, z: this.henAt.z, name: 'Pinky the hen', done: false };
@@ -114,7 +127,8 @@ export class Quests {
     return q.spots.find(s => !s.done) ?? null;
   }
   get objective(): string {
-    const q = this.cur; if (!q) return 'All tasks done. Explore Panjim, and keep the demons away at night.';
+    const w = this.waiting; if (!this.cur) return w.length ? `${w.length} ${w.length === 1 ? 'person needs' : 'people need'} help: find a ! and talk to them` : 'Everyone is helped today. Explore Panjim, and keep the bhoots away at night.';
+    const q = this.cur!;
     const left = q.spots.filter(s => !s.done).length, done = q.spots.length - left;
     if (q.kind === 'collect') return `${q.title}: ${done}/${q.spots.length} bags picked up`;
     if (q.kind === 'catch') return this.henAt.caught ? `${q.title}: walk Pinky home` : `${q.title}: catch Pinky`;
@@ -122,13 +136,23 @@ export class Quests {
     return `${q.title}: ${this.target?.name ?? ''} (${done}/${q.spots.length})`;
   }
   /** The spots to pin on the minimap. */
-  get pins(): Spot[] { const t = this.target, q = this.cur; return q?.kind === 'catch' || q?.kind === 'rescue' ? (t ? [t] : []) : (q?.spots.filter(s => !s.done) ?? []); }
+  get pins(): Spot[] { if (!this.cur) return this.waiting.map(q => q.at!); const t = this.target, q = this.cur; return q?.kind === 'catch' || q?.kind === 'rescue' ? (t ? [t] : []) : (q?.spots.filter(s => !s.done) ?? []); }
 
   private show() {
     for (const m of this.marks) this.group.remove(m);
     this.marks = [];
     if (this.henObj) { this.group.remove(this.henObj); this.henObj = null; }
-    const q = this.cur; if (!q) return;
+    // nobody's task in hand: the people waiting, each with a gold ! over their head
+    if (!this.cur) {
+      for (const q of this.waiting) {
+        const o = new THREE.Group(); o.add(person([0xd0342c, 0xf2c230, 0x2f7fc1, 0x2c9a52][this.list.indexOf(q) % 4]));
+        const ex = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.5, 0.45), new THREE.MeshBasicMaterial({ color: 0xf2c230 })); ex.position.y = 7.2; o.add(ex);
+        const dot = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.45), new THREE.MeshBasicMaterial({ color: 0xf2c230 })); dot.position.y = 5.9; o.add(dot);
+        o.position.set(q.at!.x, this.g.heightAt(q.at!.x, q.at!.z) + 0.15, q.at!.z); o.userData.giver = true; this.marks.push(o); this.group.add(o);
+      }
+      return;
+    }
+    const q = this.cur!;
     if (q.kind === 'catch') {
       // Pinky starts out in the open ground some way off
       for (let k = 0; k < 400; k++) { const a = this.rnd() * 6.28, r = 150 + this.rnd() * 200, x = this.sx + Math.cos(a) * r, z = this.sz + Math.sin(a) * r; if (this.free(x, z)) { this.henAt = { x, z, caught: false }; break; } }
@@ -170,6 +194,7 @@ export class Quests {
 
   update(dt: number, cx: number, cz: number): { pts: number; msg: string } | null {
     this.t += dt;
+    for (const m of this.marks) if (m.userData.giver) { m.children[1].position.y = 7.2 + Math.sin(this.t * 3) * 0.3; m.children[2].position.y = 5.9 + Math.sin(this.t * 3) * 0.3; }
     const q = this.cur; if (!q) return null;
     for (const m of this.marks) if (q.kind === 'deliver') m.children[0].rotation.y = this.t;
     // Pinky: runs from the child, gets caught when cornered or outrun, then trots behind
@@ -219,8 +244,8 @@ export class Quests {
 
   private finish(q: Quest): { pts: number; msg: string } {
     if (q === this.night) { this.night = null; this.nightDone = true; this.show(); return { pts: q.pts + 50, msg: q.outro }; }
-    this.i++; this.show();
-    const next = this.list[this.i];
-    return { pts: q.pts + 30, msg: q.outro + (next ? `\n\n${next.intro}` : '') };
+    q.done = true; this.i = -1; this.show();
+    const left = this.waiting.length;
+    return { pts: q.pts + 30, msg: q.outro + (left ? `\n\n${left} more ${left === 1 ? 'person needs' : 'people need'} help today: look for the ! on the map.` : '') };
   }
 }

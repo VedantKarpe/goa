@@ -53,7 +53,15 @@
     #stick i { position: absolute; left: 33px; top: 33px; width: 44px; height: 44px; border-radius: 50%; background: rgba(236,228,207,.55); }
     .btns button { touch-action: none; }
     #loading { position: fixed; inset: 0; display: grid; place-items: center; font-size: 18px; background: #0a1020; }
-  </style>
+      /* messages you can read: solid card, bigger text; on phones at the top, clear of the thumbs and the buttons */
+    #say { background: rgba(12,10,22,.95); border: 1px solid rgba(242,194,48,.55); box-shadow: 0 4px 18px rgba(0,0,0,.45); font-size: 16.5px; line-height: 1.45; padding: 10px 16px; z-index: 5; }
+    #objective { background: rgba(12,10,22,.7); padding: 3px 10px; border-radius: 6px; }
+    @media (max-width: 700px) {
+      #place { display: none; }   /* the place name also shows in the task line and on the map */
+      #objective { top: 74px; font-size: 13px; max-width: calc(100vw - 150px); left: 8px; transform: none; text-align: left; }
+      #say { top: 116px; bottom: auto; left: 8px; right: 8px; transform: none; max-width: none; font-size: 16px; }
+    }
+</style>
 </head>
 <body>
   <div id="app"></div>

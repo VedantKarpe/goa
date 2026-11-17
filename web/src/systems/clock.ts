@@ -29,7 +29,7 @@ export class Clock {
   private allowed: Set<number> | null = null;
   private shown = '';
 
-  constructor(net: Network, g: Ground, blocked: (x: number, z: number) => boolean = () => false) {
+  constructor(net: Network, g: Ground, blocked: (x: number, z: number, iron: boolean) => boolean = () => false) {
     this.lamps.name = 'street lights';
     // a light every 30 m along each street, on its left side: the old cast-iron globe lamps on the main streets, and on
     // the ordinary streets the grey concrete pole with a curved arm and a white tubelight hanging over the road
@@ -41,7 +41,7 @@ export class Clock {
       if (main) { main = false; for (const sd of [-1, 1]) for (let k = 4; k <= 34 && !main; k += 3) if (g.landAt(mid.x + mid.dz * sd * (E.width * 0.75 + k), mid.z - mid.dx * sd * (E.width * 0.75 + k)) < 0.5) main = true; }
       for (let s = 10; s < E.len; s += 30) {
         const p = net.at(e, s), off = E.width / 2 + 1.5, x = p.x + p.dz * off, z = p.z - p.dx * off, y = net.deckY(e, s) ?? g.heightAt(x, z);
-        if (blocked(x, z)) continue;           // no lamp post inside a building
+        if (blocked(x, z, main)) continue;           // no lamp post inside a building
         const ang = Math.atan2(-p.dx, -p.dz);   // turns the arm (local +X) toward the road
         const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ang), new THREE.Vector3(1, 1, 1));
         if (main) { iron.push(m); this.spots.push(new THREE.Vector3(x, y + 9, z)); this.spotHead.push([null, iron.length - 1]); }

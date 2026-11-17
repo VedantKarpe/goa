@@ -75,7 +75,7 @@ export class Traffic {
     const m = near[Math.floor(this.rnd() * near.length)], E = this.net.edges[m.e];
     const r = this.rnd(), kind: Kind = E.width < 9 ? (r < 0.6 ? 'pilot' : 'car') : r < 0.12 ? 'bus' : r < 0.5 ? 'pilot' : 'car';
     const e = E.oneWay || this.rnd() < 0.5 ? m.e : ~m.e;
-    const vmax = (kind === 'pilot' ? 9 : kind === 'bus' ? 6 : 8) * (E.width < 9 ? 0.7 : 1);
+    const vmax = (kind === 'pilot' ? 30 : kind === 'bus' ? 13 : 18) * (E.width < 9 ? 0.75 : 1) * (0.85 + this.rnd() * 0.3);   // pilots zoom; buses lumber
     const obj = makeVehicle(kind, this.rnd); this.group.add(obj);
     this.list.push({ kind, obj, e, s: this.rnd() * E.len, v: vmax * 0.6, vmax, len: kind === 'bus' ? 17 : kind === 'car' ? 7.5 : 3.2, x: 0, z: 0, hx: 1, hz: 0, honk: 0 });
   }
@@ -104,12 +104,13 @@ export class Traffic {
       for (const o of this.list) {
         if (o === v) continue;
         const dx = o.x - v.x, dz = o.z - v.z, ahead = dx * v.hx + dz * v.hz, side = Math.abs(dx * v.hz - dz * v.hx);
-        if (ahead > 0 && ahead < v.len + 9 && side < 2.6 && o.hx * v.hx + o.hz * v.hz > 0.3) want = Math.min(want, Math.max(0, (ahead - v.len) * 0.6));
+        // a pilot squeezes past anything not right in front of him; cars and buses queue
+        if (ahead > 0 && ahead < v.len + 9 + v.v * 0.4 && side < (v.kind === 'pilot' ? 1.1 : 2.6) && o.hx * v.hx + o.hz * v.hz > 0.3) want = Math.min(want, Math.max(0, (ahead - v.len) * 0.9));
       }
       if (v !== this.riding) {
         const dx = cx - v.x, dz = cz - v.z, ahead = dx * v.hx + dz * v.hz, side = Math.abs(dx * v.hz - dz * v.hx);
-        if (ahead > 0 && ahead < 14 && side < 3.5) {
-          want = Math.min(want, Math.max(0, (ahead - 6) * 0.5));
+        if (ahead > 0 && ahead < 14 + v.v * 0.7 && side < 3.5) {
+          want = Math.min(want, Math.max(0, (ahead - 6) * 0.8));
           if (v.honk <= 0 && v.v > 2) { v.honk = 4; this.onEvent('honk', ''); }
         }
         // the child walks into a moving vehicle: an accident
@@ -134,12 +135,12 @@ export class Traffic {
         if (ahead > 0 && ahead < 12 && Math.abs(dx * v.hz - dz * v.hx) < 2.5) { want = Math.min(want, 3); break; }
       }
       if (night) want *= 0.85;
-      v.v += Math.max(-12 * dt, Math.min(3 * dt, want - v.v));
+      v.v += Math.max(-20 * dt, Math.min((v.kind === 'pilot' ? 10 : 4) * dt, want - v.v));
       v.honk -= dt;
       v.s += v.v * dt;
       for (let k = 0; k < 8 && v.s > this.net.edge(v.e).len; k++) { v.s -= this.net.edge(v.e).len; v.e = this.net.next(v.e, this.rnd); }
       const p = this.net.at(v.e, v.s), w = this.net.edge(v.e).width;
-      const off = w * (w >= 9 ? 0.24 : 0.2);   // keep left: offset to the left of the direction of travel
+      const off = w * (w >= 9 ? 0.24 : 0.2) + (v.kind === 'pilot' ? Math.sin(v.s * 0.04 + v.len * 7) * Math.min(1.4, w * 0.08) : 0);   // keep left (pilots weave about in the lane)
       const lx = p.dz, lz = -p.dx;
       v.x = p.x + lx * off; v.z = p.z + lz * off; v.hx += (p.dx - v.hx) * Math.min(1, dt * 8); v.hz += (p.dz - v.hz) * Math.min(1, dt * 8);
       const deck = this.net.deckY(v.e, v.s);

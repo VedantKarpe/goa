@@ -141,6 +141,24 @@ export function bridgeProfiles(d: PanjimData, g: Ground): Map<Flat, (s: number) 
   for (const b of B) {
     const endH = (k: string, p: [number, number]) => joined(b, k) ? Math.max(...(at.get(k) ?? []).map(i => B[i].D)) : ground(p);
     const H0 = endH(b.k0, b.line[0]), H1 = endH(b.k1, b.line[b.line.length - 1]), D = b.D, L = b.L;
+    if (L > 500 && !(b.flags & 8)) {
+      // a long stretch marked as a bridge (a highway over a creek or two): it runs on the ground and only rises over
+      // the water, ramping at 1 in 12; where it joins another bridge piece it starts at that piece's height
+      const step = 10, samples: [number, number][] = [];
+      const pointAt = (s: number): [number, number] => {
+        let acc = 0;
+        for (let i = 1; i < b.line.length; i++) {
+          const [ax, az] = b.line[i - 1], [bx, bz] = b.line[i], l = Math.hypot(bx - ax, bz - az);
+          if (acc + l >= s) { const t = (s - acc) / (l || 1); return [ax + (bx - ax) * t, az + (bz - az) * t]; }
+          acc += l;
+        }
+        return b.line[b.line.length - 1];
+      };
+      for (let s = 0; s <= L; s += step) { const p = pointAt(s); samples.push([s, g.landAt(p[0], p[1]) < 0.5 ? Math.max(5, ground(p) + 3) : ground(p)]); }
+      samples.push([0, H0], [L, H1]);
+      out.set(b.f, s => { let h = 0; for (const [sj, tj] of samples) h = Math.max(h, tj - Math.abs(s - sj) / 12); return h; });
+      continue;
+    }
     const ramp = Math.max(1, Math.min(120, L * 0.45)), sm = (t: number) => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
     out.set(b.f, s => D + (H0 - D) * (1 - sm(s / ramp)) + (H1 - D) * (1 - sm((L - s) / ramp)));
   }

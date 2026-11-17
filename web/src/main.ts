@@ -108,7 +108,7 @@ async function start() {
   const signals = new Signals(net, g, (x, z) => bi.solid(x, z, 1.2)); scene.add(signals.group); traffic.signals = signals;
   const people = new People(net, g, d); scene.add(people.group);
   const monsters = new Monsters(g, move); scene.add(monsters.group);
-  const day = new Clock(net, g, (x, z) => bi.solid(x, z, 1.2) || ((si.at(x, z)?.half ?? 0) > 2.5 && si.at(x, z)?.deck === null)); scene.add(day.lamps);   // no lamp post inside a building or out on another (ground-level) road
+  const day = new Clock(net, g, (x, z, iron) => bi.solid(x, z, 1.2) || (!iron && (si.at(x, z)?.half ?? 0) > 2.5)); scene.add(day.lamps);   // no lamp post inside a building; no tubelight out on another road (the iron lamps along Atal Setu stand between its carriageways)
   const quests = new Quests(d, net, g, blds.list, px, pz, (x, z) => move.free(x, z)); scene.add(quests.group);
   // the areas of Goa with their own scenery and characters (Fontainhas, Miramar...) load as the child comes near them
   const sand = beachSand(d);
@@ -148,6 +148,7 @@ async function start() {
   let knockX = 0, knockZ = 0, hurtT = 0;
   const talk = () => {
     const said = areaMgr.talk(px, pz); if (said) { hud.whisper(said, 9, true); return; }
+    const giver = quests.giverNear(px, pz); if (giver) { hud.whisper(quests.accept(giver), 10, true); sfx.pick(); return; }   // tasks start only when you ask
     const p = people.near(px, pz);
     hud.whisper(p ? people.talk(px, pz, quests.target) : 'Nobody here to ask, baba. Go near someone and ask.');
   };
@@ -432,7 +433,7 @@ async function start() {
     renderer.render(scene, rig.camera);
     const t = campaign.active ? campaign.piece : blackout.target ?? quests.target;
     const hint = t && (campaign.active || blackout.active || quests.cur?.kind !== 'collect') ? `${Math.round(Math.hypot(t.x - px, t.z - pz) / 10) * 10} m` : '';
-    hud.update(dt, renderer, { courage: st.courage, oil: st.oil, points: st.points, time: day.label + (night ? ' · night' : ''), placeName: nd < 400 ? near : '', objective: campaign.active || (!campaign.done && !blackout.active) ? campaign.objective : blackout.active ? "Torch dead: follow the only lit street to Uncle's battery shop" : quests.objective, riding: !!traffic.riding, hint });
+    hud.update(dt, renderer, { courage: st.courage, oil: st.oil, points: st.points, time: day.label + (night ? ' · night' : ''), placeName: nd < 400 ? near : '', objective: campaign.active ? campaign.objective : blackout.active ? "Torch dead: follow the only lit street to Uncle's battery shop" : quests.objective, riding: !!traffic.riding, hint });
   };
   (window as unknown as { rkFrame: (dt: number) => void }).rkFrame = frame;   // for tests: run one frame by hand
   // adaptive resolution: draw fewer pixels when frames run slow, more when there is room, so it stays smooth
