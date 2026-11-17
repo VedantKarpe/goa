@@ -67,16 +67,25 @@ export function buildTrees(d: PanjimData, g: Ground, bi: BuildingIndex, si: Stre
     }
     return out;
   };
+  // trees are grouped into map squares 240 m across, one instanced mesh each, so the squares off-screen or far away are
+  // skipped entirely (a single mesh for the whole town meant every tree was drawn every frame)
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   const place = (geo: THREE.BufferGeometry, list: [number, number][], scale: [number, number]) => {
-    const mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }), list.length);
+    const C = 240, cells = new Map<number, [number, number][]>();
+    for (const q of list) { const k = Math.floor(q[0] / C) * 4096 + Math.floor(q[1] / C); let a = cells.get(k); if (!a) cells.set(k, a = []); a.push(q); }
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
-    list.forEach(([X, Z], i) => {
-      const k = scale[0] + rnd() * (scale[1] - scale[0]);
-      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd() * Math.PI * 2);
-      m.compose(p.set(X, g.heightAt(X, Z), Z), q, s.set(k, k, k)); mesh.setMatrixAt(i, m);
-    });
-    mesh.castShadow = true; mesh.receiveShadow = true;
-    group.add(mesh);
+    for (const [k, items] of cells) {
+      const mesh = new THREE.InstancedMesh(geo, mat, items.length);
+      items.forEach(([X, Z], i) => {
+        const sc = scale[0] + rnd() * (scale[1] - scale[0]);
+        q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd() * Math.PI * 2);
+        m.compose(p.set(X, g.heightAt(X, Z), Z), q, s.set(sc, sc, sc)); mesh.setMatrixAt(i, m);
+      });
+      mesh.computeBoundingSphere();
+      mesh.userData.cell = [(Math.floor(k / 4096) + 0.5) * C, ((k % 4096) + 0.5) * C];   // for hiding far squares
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      group.add(mesh);
+    }
   };
   place(treeGeo(3.5, 3.4, 0x467a3a), spots('F', 2), [0.8, 1.4]);
   place(treeGeo(1.2, 2.4, 0x2a4a30), spots('M', 1), [0.7, 1.1]);

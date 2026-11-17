@@ -94,7 +94,7 @@ async function start() {
       m.add(strip);
     }
   }
-  scene.add(buildTrees(d, g, bi, si));
+  const treeGroup = buildTrees(d, g, bi, si); scene.add(treeGroup);
 
   const child = new Child(); scene.add(child.obj);
   const move = new Movement(g, bi, si);
@@ -229,7 +229,8 @@ async function start() {
     return L < 160 && (dx * camDir.x + dz * camDir.z) / (L * fl) > Math.cos(0.5);
   };
   const clock = new THREE.Clock();
-  let mapT = 0, shopT = 0, cowSaid = false;
+  let mapT = 0, shopT = 0, cowSaid = false, cullT = 0;
+  const smallStuff = [bikes.group, cows.group, pumps.group, people.group, traffic.group];
   const shopTag = document.createElement('div'); shopTag.id = 'shopTag'; document.body.appendChild(shopTag);
   shopTag.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#7a1e1ee6;color:#fff4d8;font:600 14px Georgia,serif;padding:4px 12px;border-radius:6px;border:2px solid #f2c230;display:none;pointer-events:none;z-index:5';
   (window as unknown as { rk: unknown }).rk = { fontainhas, miramar, campaign, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
@@ -413,6 +414,14 @@ async function start() {
     if (inkT <= 0) { inkT = 0.5; for (const gr of [traffic.group, people.group, monsters.group, quests.group]) toonify(gr, [gr], () => false); }
     const seen = places2.update(px, pz, rig.camera, performance.now() / 1000);
     if (seen) { st.points += 5; hud.whisper(`${seen.name}! ${seen.note}`, 6); }
+    // performance: hide what is far away (trees by map square, and small things one by one); the haze hides the rest
+    cullT -= dt;
+    if (cullT <= 0) {
+      cullT = 0.3;
+      const far = fog.far + 150, near = 320;
+      for (const m of treeGroup.children) { const c = m.userData.cell as [number, number] | undefined; if (c) m.visible = Math.hypot(c[0] - px, c[1] - pz) < far + 170; }
+      for (const gr of smallStuff) for (const o of gr.children) o.visible = Math.hypot(o.position.x - px, o.position.z - pz) < near || o.position.lengthSq() === 0;
+    }
     renderer.render(scene, rig.camera);
     const t = campaign.active ? campaign.piece : blackout.target ?? quests.target;
     const hint = t && (campaign.active || blackout.active || quests.cur?.kind !== 'collect') ? `${Math.round(Math.hypot(t.x - px, t.z - pz) / 10) * 10} m` : '';
