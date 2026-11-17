@@ -3,7 +3,8 @@
 // the entrance. The sun sets into the sea here.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { T, WATER_Y, type PanjimData, type Ground } from './data';
+import { T, WATER_Y, type PanjimData, type Ground } from '../world/data';
+import type { AreaContext, AreaInstance } from './types';
 
 interface Walker { obj: THREE.Group; a: [number, number]; b: [number, number]; t: number; sp: number }
 
@@ -141,4 +142,10 @@ function tint(geo: THREE.BufferGeometry, hex: number): THREE.BufferGeometry {
   const g = geo.toNonIndexed(), c = new THREE.Color(hex), a = new Float32Array(g.attributes.position.count * 3);
   for (let i = 0; i < a.length; i += 3) { a[i] = c.r; a[i + 1] = c.g; a[i + 2] = c.b; }
   g.setAttribute('color', new THREE.BufferAttribute(a, 3)); g.deleteAttribute('uv'); return g;
+}
+
+/** Load Miramar: the beach scenery, with its waves and walkers moving while it is loaded. */
+export function build(ctx: AreaContext): AreaInstance {
+  const m = new Miramar(ctx.d, ctx.g, ctx.free);
+  return { group: m.group, update: (dt, time) => m.update(dt, time) };
 }

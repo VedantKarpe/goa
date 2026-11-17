@@ -4,9 +4,10 @@
 // talk to him and he sends you looking for one particular azulejo.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { Building } from './buildings';
-import type { Seg } from './roads';
-import type { Ground } from './data';
+import type { Building } from '../world/buildings';
+import type { Seg } from '../world/roads';
+import { T, type Ground } from '../world/data';
+import type { AreaContext, AreaInstance } from './types';
 
 const NAMES = ['Casa Rosa', 'Casa Lourdes', 'Vila Fernandes', 'Casa Azul', 'Casa de Sousa', 'Vila Maria', 'Casa Menezes', 'Casa Pinto', 'Vila Gracia', 'Casa Dias'];
 const TARGET = 'Casa Lourdes';
@@ -126,4 +127,15 @@ export class Fontainhas {
 
   /** For the minimap: the uncle's spot. */
   get uncleAt() { return this.uncle; }
+}
+
+/** Load Fontainhas: balcões, azulejos, the wayside cross, and Uncle Agnelo with his task. */
+export function build(ctx: AreaContext): AreaInstance {
+  const seb = ctx.d.lm.find(l => l.name === 'sebastian');
+  const f = new Fontainhas(ctx.houses, ctx.segs, ctx.g, seb ? { x: seb.at[0][0] * T, z: seb.at[0][1] * T } : null);
+  return {
+    group: f.group,
+    talk: (px, pz) => (f.nearUncle(px, pz) ? f.talk() : null),
+    tick: (px, pz) => { const m = f.update(px, pz); return m ? { msg: m, pts: 40 } : null; },
+  };
 }

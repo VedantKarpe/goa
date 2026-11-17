@@ -33,8 +33,8 @@ import { buildPromenade } from './world/promenade';
 import { Cows } from './entities/cows';
 import { buildShops, buildLoveSign } from './world/shops';
 import { Campaign } from './systems/campaign';
-import { Miramar } from './world/miramar';
-import { Fontainhas } from './world/fontainhas';
+import { AreaManager } from './areas/manager';
+import { areas, beachSand } from './areas/registry';
 
 async function start() {
   const [d] = await Promise.all([loadPanjim(), loadModels()]);
@@ -110,19 +110,18 @@ async function start() {
   const monsters = new Monsters(g, move); scene.add(monsters.group);
   const day = new Clock(net, g, (x, z) => bi.solid(x, z, 1.2)); scene.add(day.lamps);
   const quests = new Quests(d, net, g, blds.list, px, pz, (x, z) => move.free(x, z)); scene.add(quests.group);
-  // Fontainhas: balcões, azulejos, the wayside cross and Uncle Agnelo
-  const seb = d.lm.find(l => l.name === 'sebastian');
-  const fontainhas = new Fontainhas(blds.list, roads.segs, g, seb ? { x: seb.at[0][0] * T, z: seb.at[0][1] * T } : null); scene.add(fontainhas.group);
-  // Miramar beach, with cows resting on the sand
-  const miramar = new Miramar(d, g, (x, z) => move.free(x, z)); scene.add(miramar.group);
-  if (miramar.sand.length) d.places.push(['Miramar', miramar.centre.x / T, miramar.centre.z / T]);
+  // the areas of Goa with their own scenery and characters (Fontainhas, Miramar...) load as the child comes near them
+  const sand = beachSand(d);
+  if (sand.length) d.places.push(['Miramar', sand.reduce((a, q) => a + q[0], 0) / sand.length / T, sand.reduce((a, q) => a + q[1], 0) / sand.length / T]);
+  const areaMgr = new AreaManager(areas(d), { d, g, houses: blds.list, segs: roads.segs, free: (x, z) => move.free(x, z) }, scene);
+  areaMgr.onLoaded = (name, grp) => (name === 'Fontainhas' ? toonify(grp, [], () => true) : toonify(grp, [grp], () => false));   // the cartoon look, ink outlines as before
   // shops from OpenStreetMap, the famous places to eat also in the Places guide
   const shops = buildShops(d, g, roads.segs); scene.add(shops.group);
   for (const s of shops.list) if (s.famous) d.places.push([s.name, s.x / T, s.z / T]);
   // the cows: some resting by the market and Church Square, the rest out on the streets
   const restAt = d.places.filter(([n]) => n === 'Panjim Bazaar' || n === 'Church Square').map(([, x, y]) => [x * T, y * T] as [number, number]);
   const cows = new Cows(net, g, (x, z) => move.free(x, z), restAt); scene.add(cows.group); traffic.cows = cows.list;
-  for (let i = 0; i < miramar.sand.length && i < 60; i += 9) { const [x, z] = miramar.sand[i]; cows.addAt(x + 3, z + 2, i % 2 === 0); }
+  for (let i = 0; i < sand.length && i < 60; i += 9) { const [x, z] = sand[i]; cows.addAt(x + 3, z + 2, i % 2 === 0); }   // cows on Miramar beach
   // "I love Goa" on the riverfront: the open bank west of the Old Secretariat, where the road leaves room by the water
   {
     let best: [number, number] | null = null, bd = 1e9;
@@ -145,7 +144,7 @@ async function start() {
   const st = { courage: 100, oil: 100, points: 0, lamp: true };
   let knockX = 0, knockZ = 0, hurtT = 0;
   const talk = () => {
-    if (fontainhas.nearUncle(px, pz)) { hud.whisper(fontainhas.talk(), 9, true); return; }
+    const said = areaMgr.talk(px, pz); if (said) { hud.whisper(said, 9, true); return; }
     const p = people.near(px, pz);
     hud.whisper(p ? people.talk(px, pz, quests.target) : 'Nobody here to ask, baba. Go near someone and ask.');
   };
@@ -204,7 +203,7 @@ async function start() {
   document.getElementById('loading')!.remove();
 
   // the cartoon look: cel shading everywhere, ink outlines on everything solid but the ground, streets and buildings
-  const flat = new Set(['roads', 'buildings', 'grass', 'street life', 'love sign', 'fontainhas']);
+  const flat = new Set(['roads', 'buildings', 'grass', 'street life', 'love sign']);
   const outlined = scene.children.filter(o => !flat.has(o.name) && o.type === 'Group');
   toonify(scene, outlined, o => { let p: THREE.Object3D | null = o; while (p) { if (flat.has(p.name)) return true; p = p.parent; } return false; });
   let inkT = 0, edgeT = 0, wasNight = false;
@@ -233,7 +232,7 @@ async function start() {
   const smallStuff = [bikes.group, cows.group, pumps.group, people.group, traffic.group];
   const shopTag = document.createElement('div'); shopTag.id = 'shopTag'; document.body.appendChild(shopTag);
   shopTag.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#7a1e1ee6;color:#fff4d8;font:600 14px Georgia,serif;padding:4px 12px;border-radius:6px;border:2px solid #f2c230;display:none;pointer-events:none;z-index:5';
-  (window as unknown as { rk: unknown }).rk = { fontainhas, miramar, campaign, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
+  (window as unknown as { rk: unknown }).rk = { areaMgr, campaign, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
   // the sun's disc (a soft glowing sprite, not fogged)
   const sunDisc = (() => {
     const cv = document.createElement('canvas'); cv.width = cv.height = 128; const c = cv.getContext('2d')!;
@@ -256,11 +255,13 @@ async function start() {
     const task = quests.startDay(Math.floor(Math.random() * 4));
     hud.whisper(`${before}${first ? 'Good afternoon' : 'Good morning'}, baba! Day ${dayNo + 1}: you are in ${name} today. ${task ?? ''}`, 10, true);
   };
-  places2.onTravel = p => {
+  places2.onTravel = async p => {
     if (campaign.active && day.night) { hud.whisper('No pilot will go out tonight, baba. Too many bhoots on the road. Walk, or ride a cycle.', 4, true); return; }
     let x = p.x, z = p.z;
     for (let r = 0; r < 300 && !move.free(x, z); r += 3) { x = p.x + Math.cos(r) * r; z = p.z + Math.sin(r) * r; }
     if (!move.free(x, z)) { hud.whisper(`The pilot can't find a way to ${p.name}, men.`, 3); return; }
+    hud.whisper(`Waiting for a pilot to ${p.name}...`, 3, true);
+    await areaMgr.ready(x, z);
     if (traffic.riding) traffic.hopOff(); if (bikes.riding) bikes.park(px, pz);
     px = x; pz = z; day.min = Math.min(day.min + 10, 1439);   // the ride takes ten minutes
     hud.whisper(`The pilot drops you at ${p.name}. "Thirty rupees, baba. Okay okay, for you twenty." ${p.note}`, 6, true);
@@ -312,8 +313,8 @@ async function start() {
     const hit = traffic.update(dt, px, pz, night);
     if (hit && !traffic.riding) { knockX = hit.kx; knockZ = hit.kz; st.courage = Math.max(0, st.courage - 15); hurtT = 0.6; }
     people.update(dt, px, pz, night);
-    const az = fontainhas.update(px, pz); if (az) { st.points += 40; sfx.done(); hud.whisper(az, 6, true); }
-    boats.update(dt, day.dark); cows.update(dt); miramar.update(dt, performance.now() / 1000);
+    const az = areaMgr.tick(px, pz); if (az) { st.points += az.pts; sfx.done(); hud.whisper(az.msg, 6, true); }
+    boats.update(dt, day.dark); cows.update(dt); areaMgr.update(dt, performance.now() / 1000, px, pz);
     // the shop the child is standing by
     shopT -= dt;
     if (shopT <= 0) {
@@ -418,6 +419,7 @@ async function start() {
     cullT -= dt;
     if (cullT <= 0) {
       cullT = 0.3;
+      areaMgr.refresh(px, pz);
       const far = fog.far + 150, near = 320;
       for (const m of treeGroup.children) { const c = m.userData.cell as [number, number] | undefined; if (c) m.visible = Math.hypot(c[0] - px, c[1] - pz) < far + 170; }
       for (const gr of smallStuff) for (const o of gr.children) o.visible = Math.hypot(o.position.x - px, o.position.z - pz) < near || o.position.lengthSq() === 0;
