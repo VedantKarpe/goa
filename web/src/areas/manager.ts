@@ -11,7 +11,8 @@ interface Slot { entry: AreaEntry; inst: AreaInstance | null; loading: Promise<v
 export class AreaManager {
   private slots: Slot[];
   /** Called when an area has been built and added (e.g. to give it the cartoon look). */
-  onLoaded: (name: string, group: THREE.Group) => void = () => {};
+  onLoaded: (name: string, group: THREE.Group, inst: AreaInstance, first: boolean) => void = () => {};
+  private seen = new Set<string>();
 
   constructor(entries: AreaEntry[], private ctx: AreaContext, private scene: THREE.Scene) {
     this.slots = entries.map(entry => ({ entry, inst: null, loading: null }));
@@ -22,7 +23,8 @@ export class AreaManager {
     if (!s.loading) s.loading = s.entry.load().then(mod => {
       if (s.inst) return;
       s.inst = mod.build(this.ctx); s.inst.group.name = s.entry.name; this.scene.add(s.inst.group);
-      this.onLoaded(s.entry.name, s.inst.group);
+      const first = !this.seen.has(s.entry.name); this.seen.add(s.entry.name);
+      this.onLoaded(s.entry.name, s.inst.group, s.inst, first);
     }).finally(() => { s.loading = null; });
     return s.loading;
   }

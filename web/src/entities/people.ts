@@ -38,16 +38,27 @@ export class People {
       const l = d.lm.find(q => q.name === name); if (l) return { x: l.at[0][0] * T, z: l.at[0][1] * T };
       return null;
     };
-    const centre = spot('Church Square') ?? { x: d.W * T / 2, z: d.H * T / 2 };
-    for (const c of CAST) {
-      const wp = WORKPLACE.find(([re]) => re.test(c.job)), at = (wp && spot(wp[1])) ?? { x: centre.x + (this.rnd() - 0.5) * 600, z: centre.z + (this.rnd() - 0.5) * 400 };
+    this.centre = spot('Church Square') ?? { x: d.W * T / 2, z: d.H * T / 2 };
+    this.spot = spot;
+    this.add(CAST);
+  }
+
+  private centre = { x: 0, z: 0 };
+  private spot: (name: string) => { x: number; z: number } | null = () => null;
+
+  /** New people join the town (a newly opened area brings its residents). */
+  add(cast: Cast[]) {
+    const centre = this.centre, spot = this.spot;
+    for (const c of cast) {
+      if (this.list.some(p => p.c.name === c.name)) continue;
+      const wp = WORKPLACE.find(([re]) => re.test(c.job)), at = c.workAt ?? (wp && spot(wp[1])) ?? { x: centre.x + (this.rnd() - 0.5) * 600, z: centre.z + (this.rnd() - 0.5) * 400 };
       const work = this.net.nearestNode(at.x + (this.rnd() - 0.5) * 80, at.z + (this.rnd() - 0.5) * 80);
       // home: somewhere 250-700 m from work
       let home = work;
       for (let k = 0; k < 30; k++) { const a = this.rnd() * 6.28, r = 250 + this.rnd() * 450, n = this.net.nearestNode(at.x + Math.cos(a) * r, at.z + Math.sin(a) * r); if (n !== work) { home = n; break; } }
-      const night = NIGHT_SHIFT.test(c.job);
-      const leave = night ? 1080 + this.rnd() * 60 : c.kid ? 440 + this.rnd() * 30 : 410 + this.rnd() * 130;   // 7-9 am (school 7:20); night shift from 6 pm
-      const back = night ? 330 + this.rnd() * 60 : c.kid ? 780 + this.rnd() * 40 : 1010 + this.rnd() * 100;   // 5-6:40 pm (school 1 pm); night shift till dawn
+      const night = c.shift === 'night' || NIGHT_SHIFT.test(c.job), evening = c.shift === 'evening';
+      const leave = evening ? 900 + this.rnd() * 60 : night ? 1080 + this.rnd() * 60 : c.kid ? 440 + this.rnd() * 30 : 410 + this.rnd() * 130;   // 7-9 am (school 7:20); night shift from 6 pm
+      const back = evening ? 1250 + this.rnd() * 70 : night ? 330 + this.rnd() * 60 : c.kid ? 780 + this.rnd() * 40 : 1010 + this.rnd() * 100;   // 5-6:40 pm (school 1 pm); night shift till dawn
       const n = this.net.nodes[home];
       this.list.push({ c, said: 0, home, work, leave, back, night, phase: 'home', path: [], pi: 0, s: 0, v: (c.old ? 2.6 : c.kid ? 4.5 : 3.6) + this.rnd() * 0.8, side: this.rnd() < 0.5 ? 1 : -1, x: n.x, z: n.z, hx: 1, hz: 0, t: this.rnd() * 6, obj: null, legs: [] });
     }

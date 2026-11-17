@@ -4,6 +4,7 @@ import type * as THREE from 'three';
 import type { PanjimData, Ground } from '../world/data';
 import type { Building } from '../world/buildings';
 import type { Seg } from '../world/roads';
+import type { Cast } from '../entities/cast';
 
 /** What an area gets to build itself from: the map, the ground, the town around it. */
 export interface AreaContext {
@@ -23,6 +24,8 @@ export interface AreaInstance {
   talk?(px: number, pz: number): string | null;
   /** Each frame: something happened (a task done, a find). */
   tick?(px: number, pz: number): { msg: string; pts: number } | null;
+  /** The people who live and work here: they join the town the first time the area loads. */
+  cast?: Cast[];
 }
 
 /** An entry in the list of areas: where it is, and how to load it. Loading its code happens only when needed. */

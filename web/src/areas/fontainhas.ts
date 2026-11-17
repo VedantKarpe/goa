@@ -8,6 +8,7 @@ import type { Building } from '../world/buildings';
 import type { Seg } from '../world/roads';
 import { T, type Ground } from '../world/data';
 import type { AreaContext, AreaInstance } from './types';
+import type { Cast } from '../entities/cast';
 
 const NAMES = ['Casa Rosa', 'Casa Lourdes', 'Vila Fernandes', 'Casa Azul', 'Casa de Sousa', 'Vila Maria', 'Casa Menezes', 'Casa Pinto', 'Vila Gracia', 'Casa Dias'];
 const TARGET = 'Casa Lourdes';
@@ -132,9 +133,22 @@ export class Fontainhas {
 /** Load Fontainhas: balcões, azulejos, the wayside cross, and Uncle Agnelo with his task. */
 export function build(ctx: AreaContext): AreaInstance {
   const seb = ctx.d.lm.find(l => l.name === 'sebastian');
-  const f = new Fontainhas(ctx.houses, ctx.segs, ctx.g, seb ? { x: seb.at[0][0] * T, z: seb.at[0][1] * T } : null);
+  const chapel = seb ? { x: seb.at[0][0] * T, z: seb.at[0][1] * T } : null;
+  const f = new Fontainhas(ctx.houses, ctx.segs, ctx.g, chapel);
+  const here = chapel ?? f.uncleAt, at = (dx: number, dz: number) => ({ x: here.x + dx, z: here.z + dz });
+  // the people of Fontainhas
+  const cast: Cast[] = [
+    { name: 'Dona Filomena Sequeira', job: 'azulejo painter', outfit: 'frock', top: 0x2a5fb0, bottom: 0x2a5fb0, hair: 'grey', skin: 0, prop: 'bag', old: true, hint: 'precise', workAt: at(40, -30),
+      lines: ['Every tile by hand, filho. Cobalt blue, the way my mother taught me.', 'Bring me your house name, I will paint it. Six weeks only.', 'The machine tiles from Bombay have no soul, I tell you.'] },
+    { name: 'Ramesh', job: 'waiter at a Fontainhas café', outfit: 'shirt', top: 0xf6f4ee, bottom: 0x2b2b33, hair: 'black', skin: 2, prop: 'none', hint: 'chatty', workAt: at(-50, 20),
+      lines: ['Table for one, sir? Ha ha, just joking, bhurgea.', 'Our prawn curry rice is famous, all the tourists come for it.', 'You know the lane with the blue door? My cousin lives there.'] },
+    { name: 'Senhor Mascarenhas', job: 'retired, speaks Portuguese', outfit: 'shirt', top: 0xf6edd2, bottom: 0x6a6a72, hair: 'straw', skin: 0, prop: 'cane', old: true, hint: 'vague', workAt: at(10, 40),
+      lines: ['Bom dia! Como está? ...Ah, you do not speak Portuguese. Pity, pity.', 'In 1961 I was twenty-two. Everything changed overnight.', 'This street had gas lamps once. Beautiful.'] },
+    { name: 'Tanya', job: 'photographer', outfit: 'tee', top: 0xf2c230, bottom: 0x2b2b33, hair: 'long', skin: 1, prop: 'camera', hint: 'precise', workAt: at(-20, -50),
+      lines: ['Stand still, the light on this wall is perfect!', 'Fontainhas at 5 pm is the best. Golden, everything golden.', 'I have ten thousand photos of these houses and I am still not done.'] },
+  ];
   return {
-    group: f.group,
+    group: f.group, cast,
     talk: (px, pz) => (f.nearUncle(px, pz) ? f.talk() : null),
     tick: (px, pz) => { const m = f.update(px, pz); return m ? { msg: m, pts: 40 } : null; },
   };

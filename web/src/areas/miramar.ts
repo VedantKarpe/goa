@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { T, WATER_Y, type PanjimData, type Ground } from '../world/data';
 import type { AreaContext, AreaInstance } from './types';
+import type { Cast } from '../entities/cast';
 
 interface Walker { obj: THREE.Group; a: [number, number]; b: [number, number]; t: number; sp: number }
 
@@ -147,5 +148,17 @@ function tint(geo: THREE.BufferGeometry, hex: number): THREE.BufferGeometry {
 /** Load Miramar: the beach scenery, with its waves and walkers moving while it is loaded. */
 export function build(ctx: AreaContext): AreaInstance {
   const m = new Miramar(ctx.d, ctx.g, ctx.free);
-  return { group: m.group, update: (dt, time) => m.update(dt, time) };
+  const at = (dx: number, dz: number) => ({ x: m.centre.x + dx, z: m.centre.z + dz });
+  // the people of Miramar
+  const cast: Cast[] = [
+    { name: 'Raju', job: 'bhel-puri seller', outfit: 'shirt', top: 0xe8483a, bottom: 0xf5f0e0, hair: 'black', skin: 2, prop: 'none', hint: 'chatty', shift: 'evening', workAt: at(60, 0),
+      lines: ['Bhel, sev puri, pani puri! Extra spicy for you?', 'Sunset time is rush hour for me, baba. Everyone wants bhel.', 'Twenty years on this beach. I know every regular by face.'] },
+    { name: 'Salim', job: 'coconut seller', outfit: 'kurta', top: 0x48b878, bottom: 0xf5f0e0, hair: 'topi', skin: 2, prop: 'none', hint: 'kind', shift: 'evening', workAt: at(30, 60),
+      lines: ['Tender coconut, sweet sweet! Drink, then I cut it for the malai.', 'Too hot today, men. Have one, you look tired.', 'The coconuts come from Benaulim, best in Goa.'] },
+    { name: 'Vincent', job: 'lifeguard', outfit: 'tee', top: 0xd0342c, bottom: 0xf2c230, hair: 'cap', skin: 2, prop: 'none', hint: 'precise', workAt: at(-30, -40),
+      lines: ['No swimming after the red flag, okay? The current is strong here.', 'I pulled three tourists out this week. Three!', 'Stay where I can see you, bhurgea.'] },
+    { name: 'Mr. & Mrs. Kamat', job: 'evening walkers', outfit: 'kurta', top: 0xf6f4ee, bottom: 0x6a6a72, hair: 'grey', skin: 1, prop: 'umbrella', old: true, hint: 'chatty', shift: 'evening', workAt: at(0, 80),
+      lines: ['Forty years we are walking here every evening. Same time, same path.', 'Doctor said walk daily. So we walk, and we eat bhel after. Balance!', 'Look at the sunset, baba. Free, and the best show in Goa.'] },
+  ];
+  return { group: m.group, cast, update: (dt, time) => m.update(dt, time) };
 }

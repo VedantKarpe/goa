@@ -10,6 +10,10 @@ export interface Cast {
   hair: Hair; skin: 0 | 1 | 2; prop: Prop; kid?: boolean; old?: boolean;
   lines: string[];
   hint: 'kind' | 'grumpy' | 'vague' | 'precise' | 'chatty';
+  /** Where they work (world metres), for people an area brings with it. */
+  workAt?: { x: number; z: number };
+  /** When they are out: the usual day (default), the evening (beach sellers, evening walkers) or the night shift. */
+  shift?: 'day' | 'evening' | 'night';
 }
 
 export const CAST: Cast[] = [

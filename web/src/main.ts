@@ -114,7 +114,10 @@ async function start() {
   const sand = beachSand(d);
   if (sand.length) d.places.push(['Miramar', sand.reduce((a, q) => a + q[0], 0) / sand.length / T, sand.reduce((a, q) => a + q[1], 0) / sand.length / T]);
   const areaMgr = new AreaManager(areas(d), { d, g, houses: blds.list, segs: roads.segs, free: (x, z) => move.free(x, z) }, scene);
-  areaMgr.onLoaded = (name, grp) => (name === 'Fontainhas' ? toonify(grp, [], () => true) : toonify(grp, [grp], () => false));   // the cartoon look, ink outlines as before
+  areaMgr.onLoaded = (name, grp, inst, first) => {
+    if (name === 'Fontainhas') toonify(grp, [], () => true); else toonify(grp, [grp], () => false);   // the cartoon look, ink outlines as before
+    if (first && inst.cast?.length) people.add(inst.cast);   // the area's own people move into town
+  };   // the cartoon look, ink outlines as before
   // shops from OpenStreetMap, the famous places to eat also in the Places guide
   const shops = buildShops(d, g, roads.segs); scene.add(shops.group);
   for (const s of shops.list) if (s.famous) d.places.push([s.name, s.x / T, s.z / T]);
