@@ -56,6 +56,27 @@ export class Network {
     return { x: L[0][0], z: L[0][1], dx: 1, dz: 0 };
   }
   end(e: number): number { const E = this.edges[e < 0 ? ~e : e]; return e < 0 ? E.a : E.b; }
+  /** The node nearest (x, z) that has a way out. */
+  nearestNode(x: number, z: number): number {
+    let best = 0, bd = 1e18;
+    this.nodes.forEach((n, i) => { if (!n.out.length) return; const d = (n.x - x) ** 2 + (n.z - z) ** 2; if (d < bd) { bd = d; best = i; } });
+    return best;
+  }
+
+  /** The shortest way along the streets from node a to node b, as a list of edges (Dijkstra with a heap). */
+  route(a: number, b: number): number[] {
+    const n = this.nodes.length, dist = new Float64Array(n).fill(Infinity), via = new Int32Array(n).fill(-1), viaE = new Int32Array(n);
+    const heap: [number, number][] = [[0, a]]; dist[a] = 0;
+    const push = (d: number, v: number) => { heap.push([d, v]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop()!; if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = i * 2 + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+    while (heap.length) {
+      const [d, u] = pop(); if (d > dist[u]) continue; if (u === b) break;
+      for (const e of this.nodes[u].out) { const v = this.end(e), nd = d + this.edge(e).len; if (nd < dist[v]) { dist[v] = nd; via[v] = u; viaE[v] = e; push(nd, v); } }
+    }
+    const out: number[] = []; for (let v = b; v !== a && via[v] >= 0; v = via[v]) out.push(viaE[v]);
+    return out.reverse();
+  }
+
   edge(e: number): Edge { return this.edges[e < 0 ? ~e : e]; }
 
   /** The next edge out of the end of `e`, not straight back if there is any other way. */

@@ -1,0 +1,88 @@
+// The people of Panjim: each one a person, not a crowd. A name, a job, how they dress and what they carry, and what
+// they say (a different line each time you talk to them).
+export type Outfit = 'shirt' | 'sari' | 'frock' | 'kurta' | 'cassock' | 'uniform' | 'tee';
+export type Prop = 'umbrella' | 'basket' | 'bag' | 'paper' | 'camera' | 'schoolbag' | 'phone' | 'cane' | 'none';
+export type Hair = 'black' | 'grey' | 'bald' | 'bun' | 'long' | 'cap' | 'straw' | 'topi';
+
+export interface Cast {
+  name: string; job: string;
+  outfit: Outfit; top: number; bottom: number;
+  hair: Hair; skin: 0 | 1 | 2; prop: Prop; kid?: boolean; old?: boolean;
+  lines: string[];
+  hint: 'kind' | 'grumpy' | 'vague' | 'precise' | 'chatty';
+}
+
+export const CAST: Cast[] = [
+  { name: 'Mrs. Rosy Fernandes', job: 'fish seller', outfit: 'sari', top: 0x2a8a6a, bottom: 0x2a8a6a, hair: 'bun', skin: 1, prop: 'basket', hint: 'chatty',
+    lines: ['Fresh bangdo, baba! Mackerel, still jumping. Tell your mother, no?', 'Aay deva, the tourists bargain like anything. Twenty rupees for a whole basket they want!', 'Kingfish today is too costly, men. Take the prawns.'] },
+  { name: 'Lawrence the poder', job: 'baker', outfit: 'shirt', top: 0xf5f0e0, bottom: 0x5a4a3a, hair: 'cap', skin: 1, prop: 'basket', hint: 'kind',
+    lines: ['Poee, pao, kankonn! Hot, hot! Pom-pom! (he honks his little horn)', 'Every morning five o\'clock I am up, bhurgea. Since forty years.', 'You want one poee? Take, take. Pay tomorrow.'] },
+  { name: 'Fr. Joaquim', job: 'priest', outfit: 'cassock', top: 0xf6f4ee, bottom: 0xf6f4ee, hair: 'grey', skin: 1, prop: 'none', old: true, hint: 'kind',
+    lines: ['God bless you, child. Come for mass on Sunday, no?', 'The bell will ring again, have faith. Everything in its time.', 'Don\'t run on the church steps. I have seen too many knees broken there.'] },
+  { name: 'Uncle Bosco', job: 'retired bus driver', outfit: 'shirt', top: 0x8fb8d8, bottom: 0x3a3a44, hair: 'bald', skin: 2, prop: 'paper', old: true, hint: 'precise',
+    lines: ['Thirty-two years I drove the Panjim-Mapusa bus. Every pothole I know by name.', 'In my time the Kadamba came on time. Now? Hah.', 'Read the paper today? Again they are digging the road near the market.'] },
+  { name: 'Shweta Naik', job: 'college student', outfit: 'kurta', top: 0xe07ab0, bottom: 0xf5f0e0, hair: 'long', skin: 1, prop: 'phone', hint: 'precise',
+    lines: ['Sorry, sorry, my bus is coming! ...Oh, you want directions?', 'Exams next week, men. I am finished.', 'Have you tried the ros omelette at the cart near Campal? Too good.'] },
+  { name: 'Mai Kamat', job: 'flower seller', outfit: 'sari', top: 0xf2a51a, bottom: 0xd0342c, hair: 'bun', skin: 1, prop: 'basket', old: true, hint: 'vague',
+    lines: ['Mogra, abolim, take for the temple, baba. Ten rupees only.', 'My knees are paining, but the flowers won\'t sell themselves, no?', 'Wear one abolim in your pocket. The bhoots don\'t like the smell.'] },
+  { name: 'Tony D\'Souza', job: 'mechanic', outfit: 'tee', top: 0x3a3a44, bottom: 0x2a4a7a, hair: 'black', skin: 2, prop: 'none', hint: 'grumpy',
+    lines: ['Scooter puncture? Leave it, come in the evening.', 'Kitem? I am busy, men. This carburettor is fully gone.', 'All these new bikes, plastic only. My old Bajaj, forty years and still running.'] },
+  { name: 'Aunty Lourdes', job: 'neighbourhood gossip', outfit: 'frock', top: 0x7cc8ee, bottom: 0x7cc8ee, hair: 'grey', skin: 1, prop: 'umbrella', old: true, hint: 'chatty',
+    lines: ['You know whose son that is? The Pinto boy! Went to Dubai and came back with a car, men.', 'Aay deva, the heat! Come under my umbrella, baba.', 'Don\'t tell anyone, but the Menezes daughter is getting married to a Bombay fellow.'] },
+  { name: 'Ravi Gaonkar', job: 'pilot (bike taxi)', outfit: 'shirt', top: 0xf2c230, bottom: 0x2b2b33, hair: 'black', skin: 2, prop: 'none', hint: 'precise',
+    lines: ['Pilot? Fifty rupees anywhere in Panjim. Okay, forty for you.', 'Hold tight, I go fast but I never fell. Okay, once.', 'You want to go somewhere? Use the Places, baba, I will take you.'] },
+  { name: 'Mr. Sardesai', job: 'bank clerk', outfit: 'shirt', top: 0xffffff, bottom: 0x3a3a44, hair: 'black', skin: 1, prop: 'bag', hint: 'precise',
+    lines: ['Bank closes at four, come before that.', 'No time, no time, my lunch is getting cold.', 'Every month the same: forms, forms, forms.'] },
+  { name: 'Pinky & Rinky', job: 'twins on the way home from school', outfit: 'uniform', top: 0xf6f4ee, bottom: 0x2a4a8a, hair: 'long', skin: 1, prop: 'schoolbag', kid: true, hint: 'vague',
+    lines: ['We are not twins! ...Okay we are.', 'Teacher gave us so much homework. You do it, no?', 'Have you seen the bhoots? Our cousin saw one near the creek!'] },
+  { name: 'Hans', job: 'tourist from Germany', outfit: 'tee', top: 0xe8483a, bottom: 0xd8c890, hair: 'straw', skin: 0, prop: 'camera', hint: 'vague',
+    lines: ['Excuse me, where is the beach? Ah, Miramar! Thank you, my friend.', 'Your city is so colourful! I take a photo of this house.', 'I tried feni yesterday. Very... strong.'] },
+  { name: 'Ms. Priya Desai', job: 'schoolteacher', outfit: 'sari', top: 0x5a4ab0, bottom: 0x5a4ab0, hair: 'bun', skin: 1, prop: 'bag', hint: 'precise',
+    lines: ['Shouldn\'t you be doing your homework?', 'Panjim was made the capital in 1843. Remember that for the test!', 'Walk on the footpath, not the road. How many times I have to tell you children.'] },
+  { name: 'Abdul bhai', job: 'tailor', outfit: 'kurta', top: 0xf5f0e0, bottom: 0xf5f0e0, hair: 'topi', skin: 1, prop: 'none', old: true, hint: 'kind',
+    lines: ['Your shirt is torn, beta. Bring it, I will stitch, no charge.', 'Wedding season! Twenty suits to finish by Saturday.', 'My shop is forty years in the same place. Everybody knows Abdul bhai.'] },
+  { name: 'Joe the fisherman', job: 'fisherman', outfit: 'tee', top: 0x2e86c1, bottom: 0xc89a6a, hair: 'cap', skin: 2, prop: 'none', hint: 'grumpy',
+    lines: ['No fish today. The sea is angry.', 'The casino boats scare the fish away, I tell you.', 'Go home before dark, bhurgea. The river talks at night.'] },
+  { name: 'Sister Philomena', job: 'nun', outfit: 'cassock', top: 0xf6f4ee, bottom: 0xf6f4ee, hair: 'cap', skin: 1, prop: 'none', old: true, hint: 'kind',
+    lines: ['Bless you, child. Have you eaten?', 'The children at the convent are making cribs for Christmas already.', 'Pray before you sleep, and you will have nothing to fear.'] },
+  { name: 'Prakash Shet', job: 'jeweller', outfit: 'shirt', top: 0xf2c230, bottom: 0xf5f0e0, hair: 'black', skin: 1, prop: 'phone', hint: 'precise',
+    lines: ['Gold rate is up again today. Bad time to buy, good time to sell.', 'Come with your mother, I will give a good price.', 'Hello? Haan, haan, I am coming. Two minutes.'] },
+  { name: 'Grandma Ana', job: 'retired, watching the street', outfit: 'frock', top: 0xf08aa8, bottom: 0xf08aa8, hair: 'grey', skin: 1, prop: 'cane', old: true, hint: 'chatty',
+    lines: ['When I was young, this whole street was paddy fields, you know?', 'Aay, come here, let me see you. So tall you have grown!', 'Ninety-one years old, baba. Secret is feni and sorpotel.'] },
+  { name: 'Vikram', job: 'café owner', outfit: 'tee', top: 0x2c9a52, bottom: 0x3a3a44, hair: 'black', skin: 1, prop: 'none', hint: 'chatty',
+    lines: ['Try our bebinca, homemade by my mother!', 'Tourists want avocado toast. In Goa! Can you imagine?', 'Live music on Saturday, come, no?'] },
+  { name: 'Constable Naik', job: 'traffic policeman', outfit: 'shirt', top: 0xd8c08a, bottom: 0xd8c08a, hair: 'cap', skin: 2, prop: 'none', hint: 'precise',
+    lines: ['Helmet where? ...Oh, you are walking. Okay, carry on.', 'Use the zebra crossing, bhurgea.', 'These cows, I tell you, more traffic jams than any car.'] },
+  { name: 'Savio', job: 'guitarist', outfit: 'tee', top: 0x8e44ad, bottom: 0x2b2b33, hair: 'long', skin: 1, prop: 'bag', hint: 'vague',
+    lines: ['I play at weddings. You know "Maria Pitache"? Everyone knows!', 'Music is in the Goan blood, men.', 'One day I will play at Kala Academy. Wait and see.'] },
+  { name: 'Leena', job: 'nurse', outfit: 'frock', top: 0xf6f4ee, bottom: 0xf6f4ee, hair: 'bun', skin: 1, prop: 'bag', hint: 'kind',
+    lines: ['Night shift again. Drink water, it is too hot.', 'Don\'t climb on the walls, child, I see the stitches every day.', 'If you get hurt, come to the hospital, no? Don\'t be shy.'] },
+  { name: 'Mahesh', job: 'vegetable seller', outfit: 'shirt', top: 0xe67e22, bottom: 0xf5f0e0, hair: 'black', skin: 2, prop: 'basket', hint: 'grumpy',
+    lines: ['Onions sixty rupees. Don\'t ask me why.', 'Bhendi, tomato, mirchi, all fresh. Take or go.', 'The market closes at eight. After that, nothing.'] },
+  { name: 'Mrs. Pereira', job: 'church choir singer', outfit: 'frock', top: 0xd0342c, bottom: 0xd0342c, hair: 'bun', skin: 1, prop: 'umbrella', hint: 'chatty',
+    lines: ['Practice at six, and that new girl still can\'t hit the high note.', 'Without the bell, how will anyone know when mass is? Shocking.', 'My sorpotel is the best in Panjim. Everyone says so. Ask anyone.'] },
+  { name: 'Arjun', job: 'delivery boy', outfit: 'tee', top: 0xe8483a, bottom: 0x2b2b33, hair: 'cap', skin: 1, prop: 'bag', hint: 'precise',
+    lines: ['Order for... Casa Rosa? You know where?', 'Twenty deliveries today and it is only noon.', 'Google Maps says left, the lane says no. Panjim, men.'] },
+  { name: 'Babush', job: 'boy with a cricket bat', outfit: 'tee', top: 0x52b0e0, bottom: 0xf5f0e0, hair: 'black', skin: 2, prop: 'none', kid: true, hint: 'vague',
+    lines: ['Will you field? We need one more player.', 'I hit a six into Aunty\'s garden. Now she won\'t give the ball back.', 'When I grow up I will play for India. You watch.'] },
+  { name: 'Mr. Gomes', job: 'retired professor', outfit: 'shirt', top: 0xf6edd2, bottom: 0x6a6a72, hair: 'grey', skin: 1, prop: 'cane', old: true, hint: 'precise',
+    lines: ['The Old Secretariat was Adil Shah\'s palace, did you know? Five hundred years old.', 'Read, child. Read everything. The Central Library is free.', 'In Portuguese times this street had a different name altogether.'] },
+  { name: 'Sunita', job: 'housemaid going home', outfit: 'sari', top: 0xd8332b, bottom: 0xd8332b, hair: 'bun', skin: 2, prop: 'bag', hint: 'kind',
+    lines: ['Three houses I clean every day, baba. My feet are finished.', 'Go home before dark, no? The streets are not safe at night.', 'My son is studying to be an engineer. First in the family!'] },
+  { name: 'Francis', job: 'feni seller', outfit: 'shirt', top: 0x48b878, bottom: 0x5a4a3a, hair: 'black', skin: 2, prop: 'none', hint: 'grumpy',
+    lines: ['Kids not allowed, go, go.', 'Cashew feni from my village. Strong, strong.', 'Hah, bhoots? The bhoots drink my feni and sleep, that is why I am safe.'] },
+  { name: 'Neha', job: 'artist', outfit: 'kurta', top: 0xf2b42a, bottom: 0x2f7fc1, hair: 'long', skin: 1, prop: 'bag', hint: 'vague',
+    lines: ['I am painting every house in Fontainhas. Only two hundred left!', 'Look at the light on that blue wall. Beautiful, no?', 'Colours are everything in Goa.'] },
+  { name: 'Baba Shirodkar', job: 'temple caretaker', outfit: 'kurta', top: 0xf6f4ee, bottom: 0xf2a51a, hair: 'bald', skin: 2, prop: 'none', old: true, hint: 'kind',
+    lines: ['Come, take prasad, bhurgea.', 'The Maruti temple on the hill is the oldest in Panjim.', 'Light a diya at night. Darkness runs from even a small flame.'] },
+  { name: 'Kevin', job: 'cyclist', outfit: 'tee', top: 0xf2c230, bottom: 0x2b2b33, hair: 'cap', skin: 1, prop: 'none', hint: 'precise',
+    lines: ['Every evening I cycle to Miramar and back.', 'Watch out for the potholes on the bridge, men.', 'There are bikes lying around everywhere. Just press F to take one.'] },
+  { name: 'Aunty Celine', job: 'bakery owner', outfit: 'frock', top: 0xf6edd2, bottom: 0xf6edd2, hair: 'bun', skin: 1, prop: 'none', hint: 'chatty',
+    lines: ['Bebinca, dodol, bolinhas, everything homemade!', 'Christmas orders started already. I don\'t sleep in December.', 'You look thin, baba. Eat something.'] },
+  { name: 'Rahul', job: 'IT guy home for the holidays', outfit: 'tee', top: 0x3a7ac8, bottom: 0xd8c890, hair: 'black', skin: 1, prop: 'phone', hint: 'precise',
+    lines: ['Bangalore traffic is worse. At least here there are only cows.', 'Work from home, from Goa. Best decision of my life.', 'Sorry, one minute, I am on a call.'] },
+  { name: 'Maria', job: 'girl with a kite', outfit: 'frock', top: 0xf7cc2e, bottom: 0xf7cc2e, hair: 'long', skin: 1, prop: 'none', kid: true, hint: 'vague',
+    lines: ['My kite went up to the sky! Did you see?', 'Grandpa says the stars are the bhoots\' lanterns.', 'Do you want to be my friend?'] },
+  { name: 'Mr. Kenny Lobo', job: 'retired sailor', outfit: 'shirt', top: 0xf6f4ee, bottom: 0x2a4a7a, hair: 'cap', skin: 1, prop: 'cane', old: true, hint: 'chatty',
+    lines: ['Forty years on ships, baba. Saw every port in the world, came back to Panjim.', 'Rio, Rotterdam, Singapore. Nothing beats Miramar sunset.', 'The sea talks if you listen.'] },
+];

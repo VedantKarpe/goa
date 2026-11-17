@@ -1,13 +1,29 @@
-// Townspeople walking the pavements of the real streets. Go up to one and press T: they talk the Goan way and point
-// you to where you need to go.
+// The people of Panjim, each one someone (see cast.ts), living a day like real life: in the morning they walk from
+// home to work along the real streets, they spend the day at work (the fish seller at the market, the priest at the
+// church), and in the evening they walk home. At night most are indoors; only the night-shift people are out.
+// Everyone is simulated all the time (cheaply), but only drawn when near the child.
 import * as THREE from 'three';
 import type { Network } from '../world/network';
-import type { Ground } from '../world/data';
+import { T, type Ground, type PanjimData } from '../world/data';
+import { CAST, type Cast } from './cast';
 
-interface Person { obj: THREE.Group; legs: THREE.Object3D[]; e: number; s: number; side: number; v: number; x: number; z: number; t: number; pause: number }
+type Phase = 'home' | 'toWork' | 'work' | 'toHome' | 'stroll';
+interface Person {
+  c: Cast; said: number;
+  home: number; work: number;                 // network nodes
+  leave: number; back: number; night: boolean; // schedule (game minutes)
+  phase: Phase; path: number[]; pi: number; s: number; v: number; side: number;
+  x: number; z: number; hx: number; hz: number; t: number;
+  obj: THREE.Group | null; legs: THREE.Object3D[];
+}
 
-const SHIRTS = [0xfdfbf5, 0xc0392b, 0x2e86c1, 0xe67e22, 0x8e44ad, 0x16a085, 0xf2c230, 0x7f8c8d];
-const GREET = ['Kitem re, bhurgea? Lost or what?', 'Itlo uxir? So late you are out? Ghara voch, go home, men.', 'Dev borem korum. Careful of the cars, no?', 'Boso, boso, sit a little. Too hot today.', 'Aay deva, this pothole they will never fix, I tell you.'];
+// where each kind of job is done: a named place or landmark (the rest work somewhere in the town centre)
+const WORKPLACE: [RegExp, string][] = [
+  [/fish seller|flower seller|vegetable seller/, 'Panjim Bazaar'], [/priest|nun|choir|policeman/, 'Church Square'],
+  [/temple/, 'maruti'], [/tourist/, 'Miramar'], [/artist|gossip|retired, watching/, 'Fontainhas'], [/pilot|student/, 'kadamba'],
+  [/teacher|school|kite|cricket/, 'donbosco'], [/professor/, 'imb'], [/fisherman|sailor/, 'Campal'], [/nurse|cyclist/, 'Altinho'],
+];
+const NIGHT_SHIFT = /nurse|fisherman|feni/;
 
 export class People {
   readonly group = new THREE.Group();
@@ -15,59 +31,143 @@ export class People {
   private seed = 4242;
   private rnd = () => (this.seed = (this.seed * 16807) % 2147483647) / 2147483647;
 
-  constructor(private net: Network, private g: Ground, private count = 36) { this.group.name = 'people'; }
-
-  private make(): Person {
-    const obj = new THREE.Group(), mat = (c: number) => new THREE.MeshLambertMaterial({ color: c });
-    const skin = mat([0x8a5a3a, 0xb8794a, 0x6b4428][Math.floor(this.rnd() * 3)]), shirt = mat(SHIRTS[Math.floor(this.rnd() * SHIRTS.length)]);
-    const part = (geo: THREE.BufferGeometry, m: THREE.Material, y: number, p: THREE.Object3D = obj) => { const o = new THREE.Mesh(geo, m); o.position.y = y; o.castShadow = true; p.add(o); return o; };
-    const legs = [-0.12, 0.12].map(z => { const p = new THREE.Group(); p.position.set(0, 0.85, z); obj.add(p); part(new THREE.CylinderGeometry(0.08, 0.08, 0.85, 6), mat(0x2b2b33), -0.42, p); return p; });
-    part(new THREE.CylinderGeometry(0.22, 0.26, 0.75, 8), shirt, 1.2);
-    part(new THREE.SphereGeometry(0.2, 10, 8), skin, 1.8);
-    part(new THREE.SphereGeometry(0.21, 10, 8, 0, Math.PI * 2, 0, 1.3), mat(this.rnd() < 0.3 ? 0xbcbcbc : 0x1a1410), 1.86);
-    obj.scale.setScalar(2.4);
-    this.group.add(obj);
-    return { obj, legs, e: 0, s: 0, side: this.rnd() < 0.5 ? 1 : -1, v: 1.2 + this.rnd() * 0.8, x: 0, z: 0, t: this.rnd() * 6, pause: 0 };
+  constructor(private net: Network, private g: Ground, d: PanjimData) {
+    this.group.name = 'people';
+    const spot = (name: string) => {
+      const p = d.places.find(q => q[0] === name); if (p) return { x: p[1] * T, z: p[2] * T };
+      const l = d.lm.find(q => q.name === name); if (l) return { x: l.at[0][0] * T, z: l.at[0][1] * T };
+      return null;
+    };
+    const centre = spot('Church Square') ?? { x: d.W * T / 2, z: d.H * T / 2 };
+    for (const c of CAST) {
+      const wp = WORKPLACE.find(([re]) => re.test(c.job)), at = (wp && spot(wp[1])) ?? { x: centre.x + (this.rnd() - 0.5) * 600, z: centre.z + (this.rnd() - 0.5) * 400 };
+      const work = this.net.nearestNode(at.x + (this.rnd() - 0.5) * 80, at.z + (this.rnd() - 0.5) * 80);
+      // home: somewhere 250-700 m from work
+      let home = work;
+      for (let k = 0; k < 30; k++) { const a = this.rnd() * 6.28, r = 250 + this.rnd() * 450, n = this.net.nearestNode(at.x + Math.cos(a) * r, at.z + Math.sin(a) * r); if (n !== work) { home = n; break; } }
+      const night = NIGHT_SHIFT.test(c.job);
+      const leave = night ? 1080 + this.rnd() * 60 : c.kid ? 440 + this.rnd() * 30 : 410 + this.rnd() * 130;   // 7-9 am (school 7:20); night shift from 6 pm
+      const back = night ? 330 + this.rnd() * 60 : c.kid ? 780 + this.rnd() * 40 : 1010 + this.rnd() * 100;   // 5-6:40 pm (school 1 pm); night shift till dawn
+      const n = this.net.nodes[home];
+      this.list.push({ c, said: 0, home, work, leave, back, night, phase: 'home', path: [], pi: 0, s: 0, v: (c.old ? 2.6 : c.kid ? 4.5 : 3.6) + this.rnd() * 0.8, side: this.rnd() < 0.5 ? 1 : -1, x: n.x, z: n.z, hx: 1, hz: 0, t: this.rnd() * 6, obj: null, legs: [] });
+    }
   }
 
-  update(dt: number, cx: number, cz: number, night: boolean) {
-    const want = night ? Math.floor(this.count / 3) : this.count;
-    for (let k = 0; k < 3 && this.list.length < want; k++) {
-      const p = this.make(), cand = this.net.edges.map((_, i) => i).filter(i => { const m = this.net.at(i, 0); return Math.hypot(m.x - cx, m.z - cz) < 280; });
-      if (!cand.length) { this.group.remove(p.obj); break; }
-      p.e = cand[Math.floor(this.rnd() * cand.length)]; p.s = this.rnd() * this.net.edge(p.e).len; p.x = cx + 1e4;
-      this.list.push(p);
-    }
-    for (const p of [...this.list]) {
-      if ((Math.hypot(p.x - cx, p.z - cz) > 360 && p.x < 1e4) || this.list.length > want) { this.group.remove(p.obj); this.list.splice(this.list.indexOf(p), 1); continue; }
-      const near = Math.hypot(p.x - cx, p.z - cz) < 7;
-      if (p.pause > 0) p.pause -= dt; else if (!near) {
-        p.s += p.v * 3 * dt; p.t += dt * 7;
-        for (let k = 0; k < 8 && p.s > this.net.edge(p.e).len; k++) { p.s -= this.net.edge(p.e).len; p.e = this.net.next(p.e, this.rnd); if (this.rnd() < 0.1) p.pause = 2 + this.rnd() * 3; }
+  /** Should this person be at work, at home, or between, at this time of day? */
+  private wants(p: Person, min: number): 'home' | 'work' {
+    const inShift = p.night ? (min >= p.leave || min < p.back) : (min >= p.leave && min < p.back);
+    return inShift ? 'work' : 'home';
+  }
+
+  private go(p: Person, from: number, to: number, phase: Phase) {
+    p.path = from === to ? [] : this.net.route(from, to); p.pi = 0; p.s = 0; p.phase = phase;
+  }
+
+  private started = false;
+  update(dt: number, min: number, cx: number, cz: number) {
+    // the first time: whoever should be at work already is (the game starts mid-afternoon)
+    if (!this.started) { this.started = true; for (const p of this.list) if (this.wants(p, min) === 'work') { p.phase = 'work'; const n = this.net.nodes[p.work]; p.x = n.x; p.z = n.z; } }
+    for (const p of this.list) {
+      const want = this.wants(p, min);
+      // start the walk to work or home when it is time (and pick up from wherever they are)
+      if (want === 'work' && (p.phase === 'home' || p.phase === 'toHome')) this.go(p, p.phase === 'home' ? p.home : this.net.nearestNode(p.x, p.z), p.work, 'toWork');
+      if (want === 'home' && (p.phase === 'work' || p.phase === 'toWork')) this.go(p, p.phase === 'work' ? p.work : this.net.nearestNode(p.x, p.z), p.home, 'toHome');
+      if (p.phase === 'toWork' || p.phase === 'toHome') {
+        // walk along the pavement of each street in turn
+        // out of sight they hurry (the game's clock runs fast; at a real walking pace no one would get to work by noon)
+        const seen = Math.hypot(p.x - cx, p.z - cz) < 380;
+        p.s += p.v * dt * (seen ? 1 : 12); p.t += dt * 7;
+        while (p.pi < p.path.length && p.s > this.net.edge(p.path[p.pi]).len) { p.s -= this.net.edge(p.path[p.pi]).len; p.pi++; }
+        if (p.pi >= p.path.length) { p.phase = p.phase === 'toWork' ? 'work' : 'home'; const n = this.net.nodes[p.phase === 'work' ? p.work : p.home]; p.x = n.x; p.z = n.z; }
+        else {
+          const e = p.path[p.pi], a = this.net.at(e, p.s), E = this.net.edge(e), off = (E.width / 2 + 2.2) * p.side;
+          p.x = a.x + a.dz * off; p.z = a.z - a.dx * off; p.hx = a.dx; p.hz = a.dz;
+        }
+      } else if (p.phase === 'work') {
+        // at work: stand about near the spot, now and then turning
+        const n = this.net.nodes[p.work]; p.t += dt;
+        p.x = n.x + Math.sin(p.c.name.length + 1) * 6; p.z = n.z + Math.cos(p.c.name.length) * 6;
+        const a = Math.sin(p.t * 0.3) * 2; p.hx = Math.cos(a); p.hz = Math.sin(a);
       }
-      const a = this.net.at(p.e, p.s), E = this.net.edge(p.e), off = (E.width / 2 + 2.2) * p.side;
-      p.x = a.x + a.dz * off; p.z = a.z - a.dx * off;
-      p.obj.position.set(p.x, (E.deck ?? this.g.heightAt(p.x, p.z)) + 0.15, p.z);
-      p.obj.rotation.y = near ? -Math.atan2(cz - p.z, cx - p.x) : -Math.atan2(a.dz, a.dx);
-      const sw = p.pause > 0 || near ? 0 : Math.sin(p.t) * 0.5;
-      p.legs[0].rotation.z = sw; p.legs[1].rotation.z = -sw;
+      this.show(p, cx, cz);
     }
   }
 
-  /** The person in talking reach of (x, z), if any. */
-  near(x: number, z: number): Person | null {
-    for (const p of this.list) if (Math.hypot(p.x - x, p.z - z) < 7) return p;
-    return null;
+  // draw a person only when near the child (and not when they are indoors at home)
+  private show(p: Person, cx: number, cz: number) {
+    const visible = p.phase !== 'home' && Math.hypot(p.x - cx, p.z - cz) < 360;
+    if (!visible) { if (p.obj) p.obj.visible = false; return; }
+    if (!p.obj) { const m = this.build(p.c); p.obj = m.obj; p.legs = m.legs; this.group.add(p.obj); }
+    p.obj.visible = true;
+    p.obj.position.set(p.x, this.g.heightAt(p.x, p.z) + 0.15, p.z);
+    const near = Math.hypot(p.x - cx, p.z - cz) < 7;
+    p.obj.rotation.y = near ? -Math.atan2(cz - p.z, cx - p.x) : -Math.atan2(p.hz, p.hx);
+    const walking = (p.phase === 'toWork' || p.phase === 'toHome') && !near;
+    const sw = walking ? Math.sin(p.t) * 0.5 : 0; if (p.legs.length) { p.legs[0].rotation.z = sw; p.legs[1].rotation.z = -sw; }
   }
 
-  /** What a townsperson says: a greeting, and where to go for the current task. */
+  // how someone looks: their clothes, hair, and what they carry
+  private build(c: Cast): { obj: THREE.Group; legs: THREE.Object3D[] } {
+    const obj = new THREE.Group(), mat = (col: number) => new THREE.MeshLambertMaterial({ color: col });
+    const part = (geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z = 0, p: THREE.Object3D = obj) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; p.add(o); return o; };
+    const skin = mat([0xd8a880, 0xb8794a, 0x7a4e30][c.skin]), top = mat(c.top), bottom = mat(c.bottom);
+    const legs: THREE.Object3D[] = [];
+    const robe = c.outfit === 'sari' || c.outfit === 'frock' || c.outfit === 'cassock';
+    if (robe) part(new THREE.CylinderGeometry(0.22, c.outfit === 'frock' ? 0.36 : 0.3, c.outfit === 'frock' ? 0.6 : 0.9, 10), bottom, 0, c.outfit === 'frock' ? 0.75 : 0.45);   // skirt to the ground (or a frock to the knee)
+    if (!robe || c.outfit === 'frock') for (const z of [-0.11, 0.11]) {
+      const p = new THREE.Group(); p.position.set(0, 0.85, z); obj.add(p);
+      part(new THREE.CylinderGeometry(0.08, 0.08, 0.85, 6), c.outfit === 'frock' ? skin : bottom, 0, -0.42, 0, p); legs.push(p);
+    }
+    part(new THREE.CylinderGeometry(0.2, 0.25, 0.72, 8), top, 0, 1.2);
+    if (c.outfit === 'sari') { const d = part(new THREE.BoxGeometry(0.08, 0.9, 0.5), top, 0.05, 1.15); d.rotation.x = 0.5; }   // the pallu over the shoulder
+    if (c.outfit === 'kurta') part(new THREE.CylinderGeometry(0.25, 0.28, 0.35, 8), top, 0, 0.75);
+    if (c.outfit === 'uniform') part(new THREE.BoxGeometry(0.06, 0.3, 0.06), mat(0x2a4a8a), 0.2, 1.3);   // the tie
+    part(new THREE.SphereGeometry(0.2, 10, 8), skin, 0, 1.8);
+    // hair and hats
+    const hairCol = c.hair === 'grey' ? 0xc8c8c8 : 0x1a1410;
+    if (c.hair !== 'bald' && c.hair !== 'cap' && c.hair !== 'straw' && c.hair !== 'topi') part(new THREE.SphereGeometry(0.21, 10, 8, 0, Math.PI * 2, 0, 1.3), mat(hairCol), 0, 1.86);
+    if (c.hair === 'bun') part(new THREE.SphereGeometry(0.1, 8, 6), mat(hairCol), -0.18, 1.88);
+    if (c.hair === 'long') part(new THREE.BoxGeometry(0.08, 0.4, 0.3), mat(hairCol), -0.18, 1.62);
+    if (c.hair === 'cap') { part(new THREE.SphereGeometry(0.21, 10, 8, 0, Math.PI * 2, 0, 1.4), mat(c.job.includes('police') ? 0xd8c08a : c.job.includes('nun') ? 0xf6f4ee : 0x2f7fc1), 0, 1.88); part(new THREE.BoxGeometry(0.22, 0.03, 0.2), mat(0x222222), 0.2, 1.9); }
+    if (c.hair === 'straw') { part(new THREE.CylinderGeometry(0.4, 0.4, 0.03, 12), mat(0xe8d8a0), 0, 1.98); part(new THREE.CylinderGeometry(0.18, 0.2, 0.15, 10), mat(0xe8d8a0), 0, 2.05); }
+    if (c.hair === 'topi') part(new THREE.CylinderGeometry(0.18, 0.19, 0.12, 10), mat(0xffffff), 0, 1.98);
+    // what they carry
+    if (c.prop === 'umbrella') { part(new THREE.CylinderGeometry(0.015, 0.015, 1.1, 4), mat(0x333333), 0.25, 2.0); part(new THREE.ConeGeometry(0.75, 0.3, 8), mat([0x2c2c2c, 0xd0342c, 0x2f7fc1][c.name.length % 3]), 0.25, 2.6); }
+    if (c.prop === 'basket') part(new THREE.CylinderGeometry(0.32, 0.22, 0.2, 10), mat(0x9a6a3a), 0, 2.08);
+    if (c.prop === 'bag') part(new THREE.BoxGeometry(0.1, 0.3, 0.3), mat(0x5a3a2a), 0.05, 1.0, 0.3);
+    if (c.prop === 'schoolbag') part(new THREE.BoxGeometry(0.2, 0.35, 0.32), mat(0xd0342c), -0.25, 1.25);
+    if (c.prop === 'paper') part(new THREE.BoxGeometry(0.25, 0.3, 0.02), mat(0xf2f0e8), 0.3, 1.25, 0.15);
+    if (c.prop === 'camera') part(new THREE.BoxGeometry(0.12, 0.1, 0.16), mat(0x222222), 0.25, 1.35);
+    if (c.prop === 'phone') part(new THREE.BoxGeometry(0.03, 0.12, 0.07), mat(0x222222), 0.05, 1.8, 0.2);
+    if (c.prop === 'cane') part(new THREE.CylinderGeometry(0.02, 0.02, 1.0, 4), mat(0x5a3a2a), 0.25, 0.5, 0.2);
+    obj.scale.setScalar(c.kid ? 1.7 : 2.4);
+    return { obj, legs };
+  }
+
+  /** The person in talking reach of (x, z), if any (only someone out and about). */
+  near(x: number, z: number): Person | null {
+    let best: Person | null = null, bd = 7;
+    for (const p of this.list) { if (p.phase === 'home') continue; const d = Math.hypot(p.x - x, p.z - z); if (d < bd) { bd = d; best = p; } }
+    return best;
+  }
+
+  /** What someone says: who they are, a line of theirs (a new one each time), and the way to the current target. */
   talk(cx: number, cz: number, target: { x: number; z: number; name: string } | null): string {
-    let s = GREET[Math.floor(this.rnd() * GREET.length)];
+    const p = this.near(cx, cz); if (!p) return '';
+    const c = p.c, busy = p.phase === 'toWork' ? 'Late for work, men, can\'t stop long! ' : p.phase === 'toHome' ? (p.night ? 'Night shift done, going to sleep. ' : 'Finally, home time! ') : '';
+    let s = `${c.name}, ${c.job}: "${busy}${c.lines[p.said % c.lines.length]}"`; p.said++;
     if (target) {
-      const dx = target.x - cx, dz = target.z - cz, d = Math.hypot(dx, dz);
+      const dx = target.x - cx, dz = target.z - cz, d = Math.hypot(dx, dz), m = Math.round(d / 10) * 10;
       const dir = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'][((Math.round(Math.atan2(dz, dx) / (Math.PI / 4)) % 8) + 8) % 8];
-      s += d < 40 ? ` ${target.name}? Here only, baba!` : ` ${target.name}? Go ${dir}, about ${Math.round(d / 10) * 10} metres. That side only.`;
+      s += d < 40 ? ` ${target.name}? Here only, baba!`
+        : c.hint === 'grumpy' ? ` ${target.name}? ${dir[0].toUpperCase() + dir.slice(1)}. Go, go.`
+        : c.hint === 'vague' ? ` ${target.name}? Somewhere ${dir}, I think...`
+        : c.hint === 'chatty' ? ` ${target.name}? Oh, go ${dir}, about ${m} metres, past the house with the blue door, you can't miss it!`
+        : ` ${target.name}? ${dir[0].toUpperCase() + dir.slice(1)}, about ${m} metres.`;
     }
     return s;
   }
+
+  /** How many people are out right now (for the rush hours). */
+  get outCount(): number { return this.list.filter(p => p.phase !== 'home').length; }
 }

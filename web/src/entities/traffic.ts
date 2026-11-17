@@ -56,7 +56,7 @@ export class Traffic {
   signals: Signals | null = null;
   onEvent: (kind: 'crash' | 'honk' | 'hop' | 'drop', text: string) => void = () => {};
 
-  constructor(private net: Network, private g: Ground, private count = 42) {
+  constructor(private net: Network, private g: Ground, public count = 42) {
     this.group.name = 'traffic';
     this.mids = net.edges.map((E, e) => { const m = E.line[Math.floor(E.line.length / 2)]; return { e, x: m[0], z: m[1] }; });
     // potholes: dark patches on a few streets (vehicles slow down for them)
@@ -97,6 +97,8 @@ export class Traffic {
     let hit: { kx: number; kz: number } | null = null;
     for (const v of [...this.list]) {
       if (v !== this.riding && Math.hypot(v.x - cx, v.z - cz) > 420 && v.x !== 0) { this.remove(v); continue; }
+      // fewer vehicles off-peak: the extras leave once out of sight
+      if (v !== this.riding && this.list.length > this.count && Math.hypot(v.x - cx, v.z - cz) > 160) { this.remove(v); continue; }
       // look ahead: a vehicle in front, the child in front, a pothole in front
       let want = v.vmax;
       for (const o of this.list) {

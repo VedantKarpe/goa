@@ -106,7 +106,7 @@ async function start() {
   scene.add(buildStreetLife(net, g, (x, z) => move.free(x, z)));
   const traffic = new Traffic(net, g, 48); scene.add(traffic.group);
   const signals = new Signals(net, g, (x, z) => bi.solid(x, z, 1.2)); scene.add(signals.group); traffic.signals = signals;
-  const people = new People(net, g, 44); scene.add(people.group);
+  const people = new People(net, g, d); scene.add(people.group);
   const monsters = new Monsters(g, move); scene.add(monsters.group);
   const day = new Clock(net, g, (x, z) => bi.solid(x, z, 1.2)); scene.add(day.lamps);
   const quests = new Quests(d, net, g, blds.list, px, pz, (x, z) => move.free(x, z)); scene.add(quests.group);
@@ -229,7 +229,7 @@ async function start() {
   };
   const clock = new THREE.Clock();
   let mapT = 0, shopT = 0, cowSaid = false, cullT = 0;
-  const smallStuff = [bikes.group, cows.group, pumps.group, people.group, traffic.group];
+  const smallStuff = [bikes.group, cows.group, pumps.group, traffic.group];   // (people show and hide themselves)
   const shopTag = document.createElement('div'); shopTag.id = 'shopTag'; document.body.appendChild(shopTag);
   shopTag.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#7a1e1ee6;color:#fff4d8;font:600 14px Georgia,serif;padding:4px 12px;border-radius:6px;border:2px solid #f2c230;display:none;pointer-events:none;z-index:5';
   (window as unknown as { rk: unknown }).rk = { areaMgr, campaign, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
@@ -312,7 +312,9 @@ async function start() {
     waterTime.value += dt;
     const hit = traffic.update(dt, px, pz, night);
     if (hit && !traffic.riding) { knockX = hit.kx; knockZ = hit.kz; st.courage = Math.max(0, st.courage - 15); hurtT = 0.6; }
-    people.update(dt, px, pz, night);
+    people.update(dt, day.min, px, pz);
+    // rush hours: the roads fill up 8-10 am and 5-7:30 pm, thin out at midday and empty late at night
+    { const h = day.min / 60; traffic.count = (h >= 8 && h < 10) || (h >= 17 && h < 19.5) ? 58 : (h >= 7 && h < 21) ? 34 : (h >= 21 && h < 23) || (h >= 6 && h < 7) ? 20 : 10; }
     const az = areaMgr.tick(px, pz); if (az) { st.points += az.pts; sfx.done(); hud.whisper(az.msg, 6, true); }
     boats.update(dt, day.dark); cows.update(dt); areaMgr.update(dt, performance.now() / 1000, px, pz);
     // the shop the child is standing by
