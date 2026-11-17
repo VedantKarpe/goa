@@ -34,6 +34,7 @@ import { Cows } from './entities/cows';
 import { buildShops, buildLoveSign } from './world/shops';
 import { Campaign } from './systems/campaign';
 import { Miramar } from './world/miramar';
+import { Fontainhas } from './world/fontainhas';
 
 async function start() {
   const [d] = await Promise.all([loadPanjim(), loadModels()]);
@@ -109,6 +110,9 @@ async function start() {
   const monsters = new Monsters(g, move); scene.add(monsters.group);
   const day = new Clock(net, g, (x, z) => bi.solid(x, z, 1.2)); scene.add(day.lamps);
   const quests = new Quests(d, net, g, blds.list, px, pz, (x, z) => move.free(x, z)); scene.add(quests.group);
+  // Fontainhas: balcões, azulejos, the wayside cross and Uncle Agnelo
+  const seb = d.lm.find(l => l.name === 'sebastian');
+  const fontainhas = new Fontainhas(blds.list, roads.segs, g, seb ? { x: seb.at[0][0] * T, z: seb.at[0][1] * T } : null); scene.add(fontainhas.group);
   // Miramar beach, with cows resting on the sand
   const miramar = new Miramar(d, g, (x, z) => move.free(x, z)); scene.add(miramar.group);
   if (miramar.sand.length) d.places.push(['Miramar', miramar.centre.x / T, miramar.centre.z / T]);
@@ -141,6 +145,7 @@ async function start() {
   const st = { courage: 100, oil: 100, points: 0, lamp: true };
   let knockX = 0, knockZ = 0, hurtT = 0;
   const talk = () => {
+    if (fontainhas.nearUncle(px, pz)) { hud.whisper(fontainhas.talk(), 9, true); return; }
     const p = people.near(px, pz);
     hud.whisper(p ? people.talk(px, pz, quests.target) : 'Nobody here to ask, baba. Go near someone and ask.');
   };
@@ -199,7 +204,7 @@ async function start() {
   document.getElementById('loading')!.remove();
 
   // the cartoon look: cel shading everywhere, ink outlines on everything solid but the ground, streets and buildings
-  const flat = new Set(['roads', 'buildings', 'grass', 'street life', 'love sign']);
+  const flat = new Set(['roads', 'buildings', 'grass', 'street life', 'love sign', 'fontainhas']);
   const outlined = scene.children.filter(o => !flat.has(o.name) && o.type === 'Group');
   toonify(scene, outlined, o => { let p: THREE.Object3D | null = o; while (p) { if (flat.has(p.name)) return true; p = p.parent; } return false; });
   let inkT = 0, edgeT = 0, wasNight = false;
@@ -227,7 +232,7 @@ async function start() {
   let mapT = 0, shopT = 0, cowSaid = false;
   const shopTag = document.createElement('div'); shopTag.id = 'shopTag'; document.body.appendChild(shopTag);
   shopTag.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#7a1e1ee6;color:#fff4d8;font:600 14px Georgia,serif;padding:4px 12px;border-radius:6px;border:2px solid #f2c230;display:none;pointer-events:none;z-index:5';
-  (window as unknown as { rk: unknown }).rk = { miramar, campaign, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
+  (window as unknown as { rk: unknown }).rk = { fontainhas, miramar, campaign, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
   // the sun's disc (a soft glowing sprite, not fogged)
   const sunDisc = (() => {
     const cv = document.createElement('canvas'); cv.width = cv.height = 128; const c = cv.getContext('2d')!;
@@ -306,6 +311,7 @@ async function start() {
     const hit = traffic.update(dt, px, pz, night);
     if (hit && !traffic.riding) { knockX = hit.kx; knockZ = hit.kz; st.courage = Math.max(0, st.courage - 15); hurtT = 0.6; }
     people.update(dt, px, pz, night);
+    const az = fontainhas.update(px, pz); if (az) { st.points += 40; sfx.done(); hud.whisper(az, 6, true); }
     boats.update(dt, day.dark); cows.update(dt); miramar.update(dt, performance.now() / 1000);
     // the shop the child is standing by
     shopT -= dt;

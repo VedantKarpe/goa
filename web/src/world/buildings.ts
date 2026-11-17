@@ -22,7 +22,9 @@ function wallUV(geo: THREE.BufferGeometry, base: number) {
 // Goan house colours: ochre, indigo blue, pink, sea green, Goan red, lime yellow, sky blue, cream (a touch weathered)
 const PALETTE = [0xd8332b, 0x7cc8ee, 0xf7cc2e, 0xe8483a, 0x52b0e0, 0xf2b42a, 0x48b878, 0xf08aa8, 0xf6edd2, 0xc8302a, 0x88dcc8, 0xf8dc48];
 const STOREY = 3.4;           // metres a storey
-export interface Building { p: [number, number][]; bb: [number, number, number, number]; base: number; top: number }
+export interface Building { p: [number, number][]; bb: [number, number, number, number]; base: number; top: number; quarter?: boolean; wall?: number }
+// Fontainhas, the Latin quarter: deep, saturated colours, every house two storeys with a red-tiled roof
+const QUARTER_COLS = [0xe8b028, 0x2a5fb0, 0xb8302a, 0x2f9a78, 0xe0789a, 0xf0c838, 0x3a7ac8, 0xc84a2a];
 
 function colorGeo(geo: THREE.BufferGeometry, wall: THREE.Color, roof: THREE.Color) {
   const n = geo.attributes.normal, c = new Float32Array(n.count * 3), side = wall.clone().multiplyScalar(0.8);
@@ -116,7 +118,7 @@ const MODERN_COLS = [0xdcdcd6, 0xc8ccd0, 0xe8e2d2, 0xb8c4cc, 0xd6d0c4];
 /** Panjim's old streets are terraces of narrow houses, each its own colour and height. A long plain box (most of them
  *  guessed, since the map lacks small houses) is split into such a terrace: units 6-10 m wide along its length,
  *  one to three storeys each. */
-function terraces(b: PanjimData['b'], named: [string, string, number, number, number][]): PanjimData['b'] {
+function terraces(b: PanjimData['b'], named: [string, string, number, number, number][], quarter: [number, number] = [-99, -99]): PanjimData['b'] {
   let seed = 4321; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const out: PanjimData['b'] = [];
   for (const e of b) {
@@ -130,17 +132,20 @@ function terraces(b: PanjimData['b'], named: [string, string, number, number, nu
     if (long < 14) { out.push(e); continue; }
     // separate houses with gaps between them (a Goan street is a line of detached houses and their compounds, not one
     // long block): each 7-11 m wide, set back by a different amount, a different depth, 1 or 2 storeys (now and then 3)
-    let s0 = rnd() * 3;
+    // ...except in Fontainhas, the Latin quarter: there the houses stand wall to wall along the lane, all flush with it
+    const packed = Math.hypot(cx - quarter[0], cy - quarter[1]) < 9;
+    let s0 = packed ? 0 : rnd() * 3;
     while (s0 < long - 5) {
-      const w = Math.min(long - s0, 7 + rnd() * 4), t0 = s0 / long, t1 = (s0 + w) / long;
+      let w = Math.min(long - s0, packed ? 5.5 + rnd() * 3 : 7 + rnd() * 4); if (packed && long - s0 - w < 4) w = long - s0;   // no sliver left at the end of a row
+      const t0 = s0 / long, t1 = (s0 + w) / long;
       const P = (u: number, from: [number, number], to: [number, number]) => [from[0] + (to[0] - from[0]) * u, from[1] + (to[1] - from[1]) * u];
-      const f0 = rnd() * 0.15, f1 = 0.6 + rnd() * 0.4;   // how far back the front and the back walls sit, across the plot
+      const f0 = packed ? 0 : rnd() * 0.15, f1 = packed ? 0.8 + rnd() * 0.2 : 0.6 + rnd() * 0.4;   // how far back the front and the back walls sit, across the plot
       const a0 = P(t0, a, bb), a1 = P(t1, a, bb), d0 = P(t0, dd, c), d1 = P(t1, dd, c);
       const L = (p: number[], q: number[], u: number) => [p[0] + (q[0] - p[0]) * u, p[1] + (q[1] - p[1]) * u];
       const p0 = L(a0, d0, f0), p1 = L(a1, d1, f0), p2 = L(a1, d1, f1), p3 = L(a0, d0, f1);
-      const r = rnd(), st = r < 0.45 ? 1 : r < 0.92 ? 2 : 3;
+      const r = rnd(), st = packed ? (r < 0.75 ? 2 : 3) : r < 0.45 ? 1 : r < 0.92 ? 2 : 3;
       out.push([[...p0, ...p1, ...p2, ...p3], st, 0, Math.max(150, area * w / long * (f1 - f0))]);
-      s0 += w + 3 + rnd() * 4;
+      s0 += w + (packed ? 0 : 3 + rnd() * 4);
     }
   }
   return out;
@@ -149,8 +154,9 @@ function terraces(b: PanjimData['b'], named: [string, string, number, number, nu
 export function buildBuildings(d: PanjimData, g: Ground): { group: THREE.Group; list: Building[] } {
   const named = d.named ?? [];
   const geos: THREE.BufferGeometry[] = [], list: Building[] = [];
+  const fq = d.places.find(q => q[0] === 'Fontainhas'), QX = (fq?.[1] ?? -99) * T, QZ = (fq?.[2] ?? -99) * T, QR = 180;
   const roofFlat = new THREE.Color(0xb8b2a4), roofTile = new THREE.Color(0xa8432a), white = new THREE.Color(0xfaf8f2), ochre = new THREE.Color(0xecd6a0);
-  (location.search.includes('plain') ? d.b : terraces(d.b, d.named ?? [])).forEach(   // ?plain: the old boxes, for comparisons
+  (location.search.includes('plain') ? d.b : terraces(d.b, d.named ?? [], fq ? [fq[1], fq[2]] : undefined)).forEach(   // ?plain: the old boxes, for comparisons
     ([f, lv, kind, area], idx) => {
     const p = pts(f).map(([x, y]) => [x * T, y * T] as [number, number]);
     if (p.length < 3) return;
@@ -160,7 +166,9 @@ export function buildBuildings(d: PanjimData, g: Ground): { group: THREE.Group; 
     const ov = nm ? OVERRIDE[nm[1]] : undefined;
     const style = ov?.style ?? nm?.[0] ?? '';
     const small = !kind && !style && area < 260;
+    const quarter = !kind && !style && area < 900 && Math.hypot(mx - QX, mz - QZ) < QR;
     let storeys = !kind && area < 150 && !style ? 1 : lv;
+    if (quarter) storeys = Math.max(2, Math.min(3, storeys));
     if (style === 'pub') storeys = Math.max(2, nm![4] || lv);
     if (style === 'modern') storeys = ov?.storeys ?? Math.max(3, nm![4] || lv);
     if (style === 'temple') storeys = Math.max(1, Math.min(2, lv));
@@ -171,9 +179,9 @@ export function buildBuildings(d: PanjimData, g: Ground): { group: THREE.Group; 
     geo.rotateX(-Math.PI / 2); geo.translate(0, base - 1.5, 0);
     wallUV(geo, base);
     const wall = ov?.color !== undefined ? new THREE.Color(ov.color) : style === 'pub' ? new THREE.Color(PUB_COLS[idx % PUB_COLS.length]) : style === 'modern' ? new THREE.Color(MODERN_COLS[idx % MODERN_COLS.length])
-      : kind === 1 || style === 'church' ? white : kind === 2 || style === 'temple' ? ochre : new THREE.Color(PALETTE[(idx * 7 + p.length) % PALETTE.length]);
+      : kind === 1 || style === 'church' ? white : kind === 2 || style === 'temple' ? ochre : quarter ? new THREE.Color(QUARTER_COLS[(idx * 5 + p.length) % QUARTER_COLS.length]) : new THREE.Color(PALETTE[(idx * 7 + p.length) % PALETTE.length]);
     // tiled hip roofs on houses, the old public buildings and the churches; flat on modern blocks and temples
-    const tiled = style === 'pub' || style === 'church' || (!kind && !style && area < 1400);
+    const tiled = quarter || style === 'pub' || style === 'church' || (!kind && !style && area < 1400);
     colorGeo(geo, wall, tiled ? roofTile : style === 'modern' ? new THREE.Color(0x9a9c9e) : kind === 1 ? white : roofFlat);
     geos.push(geo);
     if (tiled) {
@@ -235,7 +243,7 @@ export function buildBuildings(d: PanjimData, g: Ground): { group: THREE.Group; 
     }
     let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
     for (const [x, z] of p) { x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); }
-    list.push({ p, bb: [x0, z0, x1, z1], base, top: base + h });
+    list.push({ p, bb: [x0, z0, x1, z1], base, top: base + h, quarter, wall: wall.getHex() });
   });
   const merged = mergeGeometries(geos, false)!;
   for (const gg of geos) gg.dispose();

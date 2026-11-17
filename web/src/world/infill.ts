@@ -8,6 +8,8 @@ import type { StreetIndex } from './roads';
 const CELL = 2;   // metres a cell of the "is this ground taken?" grid
 
 export function infill(d: PanjimData, g: Ground, si: StreetIndex): PanjimData['b'] {
+  // Fontainhas is packed: its lanes fill too, however narrow, two rows deep
+  const fq = d.places.find(q => q[0] === 'Fontainhas'), inQ = (x: number, z: number) => !!fq && Math.hypot(x - fq[1] * T, z - fq[2] * T) < 190;
   const W = Math.ceil(d.W * T / CELL), H = Math.ceil(d.H * T / CELL), taken = new Uint8Array(W * H);
   const mark = (x0: number, z0: number, x1: number, z1: number) => {
     for (let z = Math.max(0, Math.floor(z0 / CELL)); z <= Math.min(H - 1, Math.floor(z1 / CELL)); z++)
@@ -28,21 +30,22 @@ export function infill(d: PanjimData, g: Ground, si: StreetIndex): PanjimData['b
     if (cx < 0 || cz < 0 || cx >= W || cz >= H || taken[cz * W + cx]) return false;
     const tx = Math.floor(x / T), ty = Math.floor(z / T), row = d.rows[ty]?.[tx];
     if (!row || row === 'W' || row === 'F' || row === 'M' || g.isWet(x, z) || si.at(x, z)) return false;
-    return dense[ty * d.W + tx] >= 4;
+    return dense[ty * d.W + tx] >= (inQ(x, z) ? 1 : 4);
   };
   const out: PanjimData['b'] = [];
   let seed = 31; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (const [f, w, flags] of d.r) {
-    if ((flags & 1) || w < 5) continue;
+    if ((flags & 1) || w < 2) continue;
     const line = pts(f).map(([x, y]) => [x * T, y * T]);
     for (let i = 1; i < line.length; i++) {
       const [ax, az] = line[i - 1], [bx, bz] = line[i], len = Math.hypot(bx - ax, bz - az);
-      if (len < 12) continue;
+      const q = inQ(ax, az) || inQ(bx, bz);
+      if (len < 12 || (w < 5 && !q)) continue;
       const tx = (bx - ax) / len, tz = (bz - az) / len, nx = -tz, nz = tx;
       // a front row on the street, then a second row behind it, as the town fills in back from the road
-      for (const back of [w * 0.75 + 3.5]) for (const sd of [-1, 1]) {
+      for (const back of q ? [w * 0.75 + 2, w * 0.75 + 15] : [w * 0.75 + 3.5]) for (const sd of [-1, 1]) {
         for (let s = 4; s + 6 < len;) {
-          const wide = 7 + Math.floor(rnd() * 5), deep = 10 + Math.floor(rnd() * 7);
+          const wide = q ? 5 + Math.floor(rnd() * 4) : 7 + Math.floor(rnd() * 5), deep = q ? 11 + Math.floor(rnd() * 2) : 10 + Math.floor(rnd() * 7);
           // the house's four corners: front on the street, back away from it
           const c = (u: number, v: number): [number, number] => [ax + tx * u + nx * sd * v, az + tz * u + nz * sd * v];
           const corners = [c(s, back), c(s + wide, back), c(s + wide, back + deep), c(s, back + deep)];
@@ -50,10 +53,10 @@ export function infill(d: PanjimData, g: Ground, si: StreetIndex): PanjimData['b
           for (let u = 0; u <= wide && ok; u += 2) for (let v = 0; v <= deep && ok; v += 2) { const [x, z] = c(s + u, back + v); if (!free(x, z)) ok = false; }
           if (ok) {
             for (let u = 0; u <= wide; u += 1) for (let v = 0; v <= deep; v += 1) { const [x, z] = c(s + u, back + v); mark(x, z, x, z); }
-            const storeys = rnd() < 0.55 ? 2 : rnd() < 0.7 ? 1 : 3;
+            const storeys = q ? (rnd() < 0.7 ? 2 : 3) : rnd() < 0.55 ? 2 : rnd() < 0.7 ? 1 : 3;
             out.push([corners.flatMap(([x, z]) => [x / T, z / T]), storeys, 0, storeys > 1 ? Math.max(160, wide * deep) : Math.min(140, wide * deep)] as PanjimData['b'][number]);
           }
-          s += wide + (ok ? 0.4 : 3);
+          s += wide + (ok ? (q ? 0 : 0.4) : q ? 1 : 3);
         }
       }
     }
