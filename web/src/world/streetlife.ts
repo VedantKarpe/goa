@@ -1,6 +1,7 @@
 // The things that make a street look lived in: cars and scooters parked along the kerb, zebra crossings at the
 // junctions, and compound walls of red laterite along the plots. All instanced or merged, so they cost a few draws.
 import * as THREE from 'three';
+import { buildCar, pick, ROAD_MIX } from '../entities/cars';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Network } from './network';
 import type { Ground } from './data';
@@ -30,10 +31,9 @@ export function buildStreetLife(net: Network, g: Ground, free: (x: number, z: nu
       let wet = false; for (let k = 2; k <= 30 && !wet; k += 4) if (g.landAt(x + p.dz * sd * k, z - p.dx * sd * k) < 0.5) wet = true;
       if (wet || !free(x, z)) continue;   // and never somewhere taken (a building, a flyover ramp over the kerb)
       const c = CAR_COLS[Math.floor(rnd() * CAR_COLS.length)], ang = -Math.atan2(p.dz, p.dx), y = Math.max(0.6, at(x, z)) + 0.2;
-      const body = new THREE.BoxGeometry(4.4, 1.1, 1.9).translate(0, 0.75, 0), cab = new THREE.BoxGeometry(2.3, 0.75, 1.75).translate(-0.3, 1.65, 0), glass = new THREE.BoxGeometry(2.35, 0.5, 1.8).translate(-0.3, 1.65, 0);
-      const parts = [painted(body, c), painted(cab, c), painted(glass, 0x1b2430)];
-      for (const [wx, wz] of [[1.4, 0.95], [1.4, -0.95], [-1.4, 0.95], [-1.4, -0.95]]) parts.push(painted(new THREE.CylinderGeometry(0.35, 0.35, 0.3, 8).rotateX(Math.PI / 2).translate(wx, 0.35, wz), 0x151515));
-      const car = mergeGeometries(parts)!; car.scale(1.5, 1.5, 1.5); car.rotateY(ang); car.translate(x, y, z); cars.push(car);
+      // a real Goan car (Swift, Alto, Innova, Thar...), parked
+      const built = buildCar(pick(ROAD_MIX, rnd()), Math.random() < 0.5 ? c : null, 'private'), car = ((built.obj.children[0] as THREE.Mesh).geometry as THREE.BufferGeometry).clone();
+      car.scale(1.6, 1.6, 1.6); car.rotateY(ang); car.translate(x, y, z); cars.push(car);
     }
   }
   // zebra crossings where three or more streets meet, a few metres into each street

@@ -7,11 +7,11 @@ import type { Network } from '../world/network';
 import type { Ground } from '../world/data';
 import { model } from '../world/models';
 import type { Signals } from '../systems/signals';
+import { buildCar, pick, ROAD_MIX } from './cars';
 
 type Kind = 'car' | 'pilot' | 'bus';
 interface Vehicle { kind: Kind; obj: THREE.Group; e: number; s: number; v: number; vmax: number; len: number; x: number; z: number; hx: number; hz: number; honk: number }
 
-const CAR_COLS = [0xd8d4c8, 0xb02a2a, 0x2a4c8a, 0x1d1d22, 0x8c8c90, 0xe8e2d0, 0x3b6b45];
 const box = (w: number, h: number, l: number, c: number, y: number, x = 0) => {
   const m = new THREE.Mesh(new THREE.BoxGeometry(l, h, w), new THREE.MeshLambertMaterial({ color: c })); m.position.set(x, y, 0); m.castShadow = true; return m;
 };
@@ -20,12 +20,9 @@ function makeVehicle(kind: Kind, rnd: () => number): THREE.Group {
   // the Blender models where there is one (drawn 1.6 x life size, as the people are)
   const m = kind === 'pilot' ? model('pilot', { length: 2.0 * 1.6 }) : kind === 'bus' ? model('bus', { length: 10.5 * 1.6 }) : null;
   if (m) return m;
+  if (kind === 'car') return buildCar(pick(ROAD_MIX, rnd()), null, 'private').obj;   // a Swift, an Innova, a Thar...
   const g = new THREE.Group();
-  if (kind === 'car') {
-    const c = CAR_COLS[Math.floor(rnd() * CAR_COLS.length)];
-    g.add(box(2.2, 1.1, 4.6, c, 0.85), box(1.9, 0.8, 2.4, c, 1.8, -0.3), box(1.95, 0.55, 2.2, 0x1b2430, 1.8, -0.3));
-    for (const [x, z] of [[1.5, 1.05], [1.5, -1.05], [-1.5, 1.05], [-1.5, -1.05]]) { const w = box(0.3, 0.7, 0.7, 0x111111, 0.35, x); w.position.z = z; g.add(w); }
-  } else if (kind === 'bus') {
+  if (kind === 'bus') {
     // Kadamba: white body, the green and yellow bands, dark windows
     g.add(box(2.6, 2.6, 10.5, 0xf2efe6, 1.9), box(2.62, 0.5, 10.52, 0x2f8a3a, 1.0), box(2.62, 0.2, 10.52, 0xf2c230, 1.35), box(2.64, 0.9, 9.6, 0x1b2430, 2.6, -0.2));
     for (const x of [3.6, -3.4]) for (const z of [1.25, -1.25]) { const w = box(0.3, 0.9, 0.9, 0x111111, 0.45, x); w.position.z = z; g.add(w); }

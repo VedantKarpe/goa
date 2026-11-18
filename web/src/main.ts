@@ -31,6 +31,7 @@ import { Signals } from './systems/signals';
 import { Blackout } from './systems/blackout';
 import { buildPromenade } from './world/promenade';
 import { Cows } from './entities/cows';
+import { Rentals } from './entities/rentals';
 import { buildShops, buildLoveSign } from './world/shops';
 import { Campaign } from './systems/campaign';
 import { AreaManager } from './areas/manager';
@@ -123,6 +124,9 @@ async function start() {
   for (const s of shops.list) if (s.famous) d.places.push([s.name, s.x / T, s.z / T]);
   // the cows: some resting by the market and Church Square, the rest out on the streets
   const restAt = d.places.filter(([n]) => n === 'Panjim Bazaar' || n === 'Church Square').map(([, x, y]) => [x * T, y * T] as [number, number]);
+  // drunk tourists in rental cars: avoid them at all times
+  const rentals = new Rentals(net, g, (x, z) => !bi.solid(x, z, 1) && !g.isWet(x, z)); scene.add(rentals.group);
+  rentals.onWarn = m => { hud.whisper(m, 3, true); sfx.honk(); };
   const cows = new Cows(net, g, (x, z) => move.free(x, z), restAt); scene.add(cows.group); traffic.cows = cows.list;
   for (let i = 0; i < sand.length && i < 60; i += 9) { const [x, z] = sand[i]; cows.addAt(x + 3, z + 2, i % 2 === 0); }   // cows on Miramar beach
   // "I love Goa" on the riverfront: the open bank west of the Old Secretariat, where the road leaves room by the water
@@ -236,7 +240,7 @@ async function start() {
   const smallStuff = [bikes.group, cows.group, pumps.group, traffic.group];   // (people show and hide themselves)
   const shopTag = document.createElement('div'); shopTag.id = 'shopTag'; document.body.appendChild(shopTag);
   shopTag.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#7a1e1ee6;color:#fff4d8;font:600 14px Georgia,serif;padding:4px 12px;border-radius:6px;border:2px solid #f2c230;display:none;pointer-events:none;z-index:5';
-  (window as unknown as { rk: unknown }).rk = { areaMgr, campaign, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
+  (window as unknown as { rk: unknown }).rk = { rentals, areaMgr, campaign, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
   // the sun's disc (a soft glowing sprite, not fogged)
   const sunDisc = (() => {
     const cv = document.createElement('canvas'); cv.width = cv.height = 128; const c = cv.getContext('2d')!;
@@ -317,6 +321,15 @@ async function start() {
     const hit = traffic.update(dt, px, pz, night);
     if (hit && !traffic.riding) { knockX = hit.kx; knockZ = hit.kz; st.courage = Math.max(0, st.courage - 15); hurtT = 0.6; }
     people.update(dt, day.min, px, pz);
+    // the rental cars: hit by one and you lose (safe while riding a pilot or the bus)
+    if (rentals.update(dt, px, pz, night, !!traffic.riding)) {
+      sfx.crash(); rentals.clearNear(px, pz); st.points = Math.max(0, st.points - 25); st.courage = 100;
+      if (bikes.riding) bikes.park(px, pz);
+      const spots = d.places.filter(q => STARTS.includes(q[0])), q = spots[Math.floor(Math.random() * spots.length)];
+      let x = q[1] * T, z = q[2] * T; for (let r = 0; r < 300 && !move.free(x, z); r += 3) { x = q[1] * T + Math.cos(r) * r; z = q[2] * T + Math.sin(r) * r; }
+      px = x; pz = z;
+      showCard('Dashed by a drunk tourist!', `A rental with a black-and-yellow plate got you, baba. Minus 25 points. You wake up in ${q[0]}. Keep away from those cars!`, 4);
+    }
     // rush hours: the roads fill up 8-10 am and 5-7:30 pm, thin out at midday and empty late at night
     { const h = day.min / 60; traffic.count = (h >= 8 && h < 10) || (h >= 17 && h < 19.5) ? 58 : (h >= 7 && h < 21) ? 34 : (h >= 21 && h < 23) || (h >= 6 && h < 7) ? 20 : 10; }
     const az = areaMgr.tick(px, pz); if (az) { st.points += az.pts; sfx.done(); hud.whisper(az.msg, 6, true); }

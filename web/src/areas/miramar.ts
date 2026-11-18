@@ -6,6 +6,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { T, WATER_Y, type PanjimData, type Ground } from '../world/data';
 import type { AreaContext, AreaInstance } from './types';
 import type { Cast } from '../entities/cast';
+import { buildCar } from '../entities/cars';
 
 interface Walker { obj: THREE.Group; a: [number, number]; b: [number, number]; t: number; sp: number }
 
@@ -160,5 +161,39 @@ export function build(ctx: AreaContext): AreaInstance {
     { name: 'Mr. & Mrs. Kamat', job: 'evening walkers', outfit: 'kurta', top: 0xf6f4ee, bottom: 0x6a6a72, hair: 'grey', skin: 1, prop: 'umbrella', old: true, hint: 'chatty', shift: 'evening', workAt: at(0, 80),
       lines: ['Forty years we are walking here every evening. Same time, same path.', 'Doctor said walk daily. So we walk, and we eat bhel after. Balance!', 'Look at the sunset, baba. Free, and the best show in Goa.'] },
   ];
-  return { group: m.group, cast, update: (dt, time) => m.update(dt, time) };
+  // tourists who drove their rentals onto the sand: two stuck, wheels spinning, and one that went into the sign
+  const stuck: { wheels: THREE.Object3D[]; spray: THREE.Points }[] = [];
+  const sandAt = (k: number) => m.sand[Math.floor(k * m.sand.length) % m.sand.length];
+  const sprayGeo = new THREE.BufferGeometry(); sprayGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Array(60 * 3).fill(0), 3));
+  for (const [k, model, ang] of [[0.35, 'thar', 0.6], [0.7, 'swift', -1.1]] as [number, 'thar' | 'swift', number][]) {
+    if (!m.sand.length) break;
+    const [x, z] = sandAt(k), c = buildCar(model, null, 'rental', { spinWheels: true });
+    c.obj.position.set(x, ctx.g.heightAt(x, z) - 0.55, z); c.obj.rotation.set(0.05, ang, model === 'thar' ? 0.12 : -0.08);   // sunk to the axles, nose up
+    const spray = new THREE.Points(sprayGeo.clone(), new THREE.PointsMaterial({ color: 0xd8c08a, size: 0.35 })); spray.position.copy(c.obj.position); m.group.add(spray);
+    m.group.add(c.obj); stuck.push({ wheels: c.wheels, spray });
+  }
+  if (m.sand.length) {
+    // the board, and the Thar that drove into it
+    const [x, z] = sandAt(0.5), y = ctx.g.heightAt(x, z);
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256; const c2 = cv.getContext('2d')!;
+    c2.fillStyle = '#f6f4ee'; c2.fillRect(0, 0, 512, 256); c2.strokeStyle = '#c0202a'; c2.lineWidth = 14; c2.strokeRect(7, 7, 498, 242);
+    c2.fillStyle = '#c0202a'; c2.font = '900 46px Arial, sans-serif'; c2.textAlign = 'center'; c2.fillText('NO VEHICLES', 256, 78); c2.fillText('ON THE BEACH', 256, 132);
+    c2.fillStyle = '#222'; c2.font = '700 30px Arial, sans-serif'; c2.fillText('Fine Rs 5,000', 256, 182); c2.font = '24px Arial, sans-serif'; c2.fillText('Dept. of Tourism, Govt. of Goa', 256, 222);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const board = new THREE.Group(), pole = new THREE.MeshLambertMaterial({ color: 0x6a6e72 });
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(5, 2.5), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide })); face.position.y = 4; face.rotation.z = 0.12; board.add(face);   // knocked crooked
+    for (const px of [-2.2, 2.2]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 4, 6), pole); p.position.set(px, 2, 0); p.rotation.z = 0.12; board.add(p); }
+    board.position.set(x, y, z); board.rotation.y = 0.3; m.group.add(board);
+    const crash = buildCar('thar', 0xb3191f, 'rental');
+    crash.obj.position.set(x + Math.sin(0.3) * 4.5, y - 0.3, z + Math.cos(0.3) * 4.5); crash.obj.rotation.set(0, 0.3 + Math.PI / 2, 0.06); m.group.add(crash.obj);
+  }
+  return { group: m.group, cast, update: (dt, time) => {
+    m.update(dt, time);
+    for (const s of stuck) {
+      for (const w of s.wheels) w.rotation.z -= dt * 18;   // spinning, going nowhere
+      const a = s.spray.geometry.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < a.count; i++) { const t = (time * 1.7 + i / a.count) % 1; a.setXYZ(i, -3 - t * 4 + Math.sin(i) * 0.6, t * 2.2 - t * t * 2, Math.cos(i * 1.7) * 1.4); }
+      a.needsUpdate = true; s.spray.rotation.y = (s.wheels[0].parent as THREE.Object3D).rotation.y;
+    }
+  } };
 }
