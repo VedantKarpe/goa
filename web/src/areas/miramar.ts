@@ -162,7 +162,7 @@ export function build(ctx: AreaContext): AreaInstance {
       lines: ['Forty years we are walking here every evening. Same time, same path.', 'Doctor said walk daily. So we walk, and we eat bhel after. Balance!', 'Look at the sunset, baba. Free, and the best show in Goa.'] },
   ];
   // tourists who drove their rentals onto the sand: two stuck, wheels spinning, and one that went into the sign
-  const stuck: { wheels: THREE.Object3D[]; spray: THREE.Points }[] = [];
+  const stuck: { obj: THREE.Group; wheels: THREE.Object3D[]; spray: THREE.Points | null; push: number; done: boolean; y0: number; who: string }[] = [];
   const sandAt = (k: number) => m.sand[Math.floor(k * m.sand.length) % m.sand.length];
   const sprayGeo = new THREE.BufferGeometry(); sprayGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Array(60 * 3).fill(0), 3));
   for (const [k, model, ang] of [[0.35, 'thar', 0.6], [0.7, 'swift', -1.1]] as [number, 'thar' | 'swift', number][]) {
@@ -170,7 +170,7 @@ export function build(ctx: AreaContext): AreaInstance {
     const [x, z] = sandAt(k), c = buildCar(model, null, 'rental', { spinWheels: true });
     c.obj.position.set(x, ctx.g.heightAt(x, z) - 0.55, z); c.obj.rotation.set(0.05, ang, model === 'thar' ? 0.12 : -0.08);   // sunk to the axles, nose up
     const spray = new THREE.Points(sprayGeo.clone(), new THREE.PointsMaterial({ color: 0xd8c08a, size: 0.35 })); spray.position.copy(c.obj.position); m.group.add(spray);
-    m.group.add(c.obj); stuck.push({ wheels: c.wheels, spray });
+    m.group.add(c.obj); stuck.push({ obj: c.obj, wheels: c.wheels, spray, push: 0, done: false, y0: c.obj.position.y, who: model === 'thar' ? 'Thar' : 'Swift' });
   }
   if (m.sand.length) {
     // the board, and the Thar that drove into it
@@ -186,11 +186,33 @@ export function build(ctx: AreaContext): AreaInstance {
     board.position.set(x, y, z); board.rotation.y = 0.3; m.group.add(board);
     const crash = buildCar('thar', 0xb3191f, 'rental');
     crash.obj.position.set(x + Math.sin(0.3) * 4.5, y - 0.3, z + Math.cos(0.3) * 4.5); crash.obj.rotation.set(0, 0.3 + Math.PI / 2, 0.06); m.group.add(crash.obj);
+    stuck.push({ obj: crash.obj, wheels: [], spray: null, push: 0, done: false, y0: crash.obj.position.y, who: 'red Thar in the sign' });
   }
-  return { group: m.group, cast, update: (dt, time) => {
+  // help push them out: talk next to a stuck car, push for a few seconds, and the grateful tourist pays you
+  let reward: { msg: string; pts: number } | null = null;
+  const near = (px: number, pz: number) => stuck.find(s => !s.done && Math.hypot(s.obj.position.x - px, s.obj.position.z - pz) < 9);
+  const pay = [
+    'Out! The tourist hugs you: "Bro, you saved my holiday!" He gives you Rs 200. +40 points.',
+    '"Thank you, little dude! Don\'t tell the cops, okay?" Rs 200 in your pocket. +40 points.',
+    'Vroom, out of the sand! The rental man will never know. They pay you Rs 200. +40 points.'];
+  return { group: m.group, cast,
+  talk: (px, pz) => {
+    const s = near(px, pz); if (!s) return null;
+    if (s.push > 0) return 'Push, baba, push! Almost out...';
+    s.push = 0.001; return `"Hey kid! Help us push, yaar? We'll pay!" You put your shoulder to the ${s.who}. Heave!`;
+  },
+  tick: () => { const r = reward; reward = null; return r; },
+  update: (dt, time) => {
     m.update(dt, time);
     for (const s of stuck) {
-      for (const w of s.wheels) w.rotation.z -= dt * 18;   // spinning, going nowhere
+      if (s.push > 0 && !s.done) {
+        s.push += dt / 4;                                            // four seconds of pushing
+        s.obj.position.y = s.y0 + Math.min(1, s.push) * 0.5; s.obj.rotation.x *= 0.98; s.obj.rotation.z *= 0.98;
+        if (s.push >= 1) { s.done = true; s.obj.rotation.set(0, s.obj.rotation.y, 0); if (s.spray) s.spray.visible = false; reward = { msg: pay[Math.floor(Math.random() * pay.length)], pts: 40 }; }
+      }
+      if (s.done) { s.obj.position.x += Math.cos(-s.obj.rotation.y) * dt * 6; s.obj.position.z += Math.sin(-s.obj.rotation.y) * dt * 6; if (s.push < 3) { s.push += dt / 4; if (s.push >= 3) s.obj.visible = false; } continue; }   // drives off, then gone
+      if (!s.spray) continue;
+      for (const w of s.wheels) w.rotation.z -= dt * (s.push > 0 ? 30 : 18);   // spinning, going nowhere
       const a = s.spray.geometry.attributes.position as THREE.BufferAttribute;
       for (let i = 0; i < a.count; i++) { const t = (time * 1.7 + i / a.count) % 1; a.setXYZ(i, -3 - t * 4 + Math.sin(i) * 0.6, t * 2.2 - t * t * 2, Math.cos(i * 1.7) * 1.4); }
       a.needsUpdate = true; s.spray.rotation.y = (s.wheels[0].parent as THREE.Object3D).rotation.y;
