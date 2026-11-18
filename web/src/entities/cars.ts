@@ -24,18 +24,6 @@ export const ROAD_MIX: [CarModel, number][] = [['swift', 0.2], ['alto', 0.14], [
 export const RENTAL_MIX: [CarModel, number][] = [['thar', 0.45], ['swift', 0.25], ['i20', 0.15], ['creta', 0.15]];
 export function pick(mix: [CarModel, number][], r: number): CarModel { let a = 0; for (const [m, w] of mix) { a += w; if (r < a) return m; } return mix[0][0]; }
 
-// a plate: private (white, black letters) or rental (black, yellow letters), drawn as a texture
-let plateTex: Record<string, THREE.CanvasTexture> = {};
-function plate(kind: 'private' | 'rental'): THREE.CanvasTexture {
-  if (plateTex[kind]) return plateTex[kind];
-  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64; const c = cv.getContext('2d')!;
-  c.fillStyle = kind === 'rental' ? '#111111' : '#f6f6f2'; c.fillRect(0, 0, 256, 64);
-  c.strokeStyle = kind === 'rental' ? '#f2c230' : '#222'; c.lineWidth = 4; c.strokeRect(3, 3, 250, 58);
-  c.fillStyle = kind === 'rental' ? '#f2c230' : '#111'; c.font = '700 40px Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.fillText(kind === 'rental' ? 'GA 03 T 7742' : 'GA 07 K 1234', 128, 34);
-  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return (plateTex[kind] = t);
-}
-
 /** Build a car. The body is one merged mesh (one draw call); wheels are separate when they need to spin. */
 export function buildCar(model: CarModel, colour: number | null, plateKind: 'private' | 'rental', opts: { spinWheels?: boolean } = {}): { obj: THREE.Group; wheels: THREE.Object3D[]; len: number } {
   const S = SPECS[model], col = colour ?? S.colours[Math.floor(Math.random() * S.colours.length)];
@@ -74,9 +62,7 @@ export function buildCar(model: CarModel, colour: number | null, plateKind: 'pri
   const obj = new THREE.Group();
   const body = new THREE.Mesh(mergeGeometries(parts)!, new THREE.MeshLambertMaterial({ vertexColors: true })); body.castShadow = true; obj.add(body);
   if (opts.spinWheels) for (const [x, z] of wheelAt) { const w = new THREE.Mesh(wheelGeo, new THREE.MeshLambertMaterial({ color: 0x151515 })); w.position.set(x, wheelR, z); obj.add(w); wheels.push(w); }
-  // the number plates, front and back
-  const pm = new THREE.MeshBasicMaterial({ map: plate(plateKind) });
-  for (const s of [1, -1]) { const p = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.13), pm); p.position.set(s * (L / 2 + (S.spare && s < 0 ? 0.36 : 0.08)), bodyY + bodyH * 0.25, 0); p.rotation.y = s * Math.PI / 2; obj.add(p); }
+  void plateKind;
   obj.scale.setScalar(1.6);
   return { obj, wheels, len: L * 1.6 };
 }

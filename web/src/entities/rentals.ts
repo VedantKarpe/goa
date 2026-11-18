@@ -1,5 +1,4 @@
-// Drunk tourists in self-drive rentals: black number plates with yellow letters (Goa's plates for hire cars), mostly
-// Thars and Swifts. They weave all over the road, ignore the signals, and when the child comes near one may lock on and
+// Drunk tourists in self-drive rentals, marked by a spinning red warning sign overhead; mostly Thars and Swifts. They weave all over the road, ignore the signals, and when the child comes near one may lock on and
 // swerve straight at them, horn blaring. Get hit and you lose: avoid them at all times.
 import * as THREE from 'three';
 import type { Network } from '../world/network';
@@ -25,6 +24,10 @@ export class Rentals {
       const p = this.net.at(e, E.len / 2), d = Math.hypot(p.x - cx, p.z - cz);
       if (d < 160 || d > 320) continue;
       const { obj } = buildCar(pick(RENTAL_MIX, this.rnd()), null, 'rental'); this.group.add(obj);
+      // a red warning sign floating over it, seen from far off (scaled with the car, so in car units)
+      const sign = new THREE.Mesh(new THREE.ConeGeometry(0.9, 1.2, 3), new THREE.MeshBasicMaterial({ color: 0xff2a2a }));
+      sign.rotation.x = Math.PI; sign.position.y = 3.6; sign.name = 'sign'; obj.add(sign);
+      this.seenNear.delete(obj);
       this.list.push({ obj, e: this.rnd() < 0.5 ? e : ~e, s: E.len / 2, v: 12, x: p.x, z: p.z, hx: p.dx, hz: p.dz, t: this.rnd() * 9, lunge: 0, cool: 3 + this.rnd() * 5, off: 0 });
       return;
     }
@@ -75,9 +78,20 @@ export class Rentals {
       const deck = r.lunge > 0 ? null : this.net.deckY(r.e, r.s);
       r.obj.position.set(r.x, (deck ?? this.g.heightAt(r.x, r.z)) + 0.25, r.z);
       r.obj.rotation.y = -Math.atan2(r.hz, r.hx) + Math.sin(r.t * 2.3) * 0.06;   // the drunk wobble
+      const sign = r.obj.getObjectByName('sign'); if (sign) { sign.position.y = 3.6 + Math.sin(r.t * 4) * 0.3; sign.rotation.y = r.t * 2; sign.scale.setScalar(r.lunge > 0 ? 1.5 : 1); }
+      // an early warning the first time one comes within 100 m
+      if (!hidden && d < 100 && !this.seenNear.has(r.obj)) { this.seenNear.add(r.obj); if (r.lunge <= 0) this.onWarn('Careful, baba! A drunk tourist\'s rental car is close by. Watch for the red sign!'); }
       if (!hidden && d < 4.2 && r.v > 4) hit = true;
     }
     return hit;
+  }
+
+  private seenNear = new WeakSet<THREE.Object3D>();
+  /** The closest rental to (x, z): where it is, how far, and whether it is coming for you. */
+  closest(x: number, z: number): { x: number; z: number; d: number; lunge: boolean } | null {
+    let best: Rental | null = null, bd = 1e9;
+    for (const r of this.list) { const d = Math.hypot(r.x - x, r.z - z); if (d < bd) { bd = d; best = r; } }
+    return best ? { x: best.x, z: best.z, d: bd, lunge: best.lunge > 0 } : null;
   }
 
   /** Clear the ones near (x, z) (after a hit, so the child is not hit again at once). */
