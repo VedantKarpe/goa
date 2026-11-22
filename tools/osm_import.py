@@ -244,14 +244,15 @@ def build(name, lat, lon, tile, inline, pins=()):
                     else: ring.append(corners[k]); k = (k - 1) % 4
                     if k == ss: break
                 ring.append(ps)
-                n = sum(1 for b in blds[::7] if inside([ring], *b))
+                area2 = sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(ring, ring[1:] + ring[:1]))
+                n = 1 if area2 < 0 else 0          # land on the left of the coastline (checked: Panaji land, the open sea west of Aguada water)
                 if best is None or n > best[0]: best = (n, ring)
             land_rings.append(best[1])
     if land_rings:
         stack = []
         for ty in range(H):
             for tx in range(W):
-                if grid[ty][tx] in 'GPFMC' and not inside(land_rings, tx + 0.5, ty + 0.5): grid[ty][tx] = 'S'   # beaches stay (OSM often draws them seaward of the coastline)
+                if grid[ty][tx] in 'GPFMC' and not any(inside([r], tx + 0.5, ty + 0.5) for r in land_rings): grid[ty][tx] = 'S'   # beaches stay (OSM often draws them seaward of the coastline)
     while stack:
         x, y = stack.pop()
         if not (0 <= x < W and 0 <= y < H) or grid[y][x] not in 'GPFMB' or high(x, y):

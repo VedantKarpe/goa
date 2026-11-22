@@ -21,6 +21,7 @@ export class Clock {
   rate = 1;                 // game minutes a real second
   readonly lamps = new THREE.Group();
   private spots: THREE.Vector3[] = [];
+  private glow: THREE.InstancedMesh | null = null;   // the new look's painted pools of lamplight
   private heads: THREE.InstancedMesh;
   private tubes: THREE.InstancedMesh;
   private pool: THREE.PointLight[] = [];
@@ -72,6 +73,19 @@ export class Clock {
     for (const h of this.spotHead) { if (h[1] < 0) { h[0] = this.tubes; h[1] = -h[1] - 1; } else h[0] = this.heads; }
     (this.heads.material as THREE.MeshBasicMaterial).color.set(0xffffff); (this.tubes.material as THREE.MeshBasicMaterial).color.set(0xffffff);
     // the new look: fewer, warmer lamp lights (each one costs every pixel on screen)
+    // the new look: a soft pool of warm light on the ground under every lamp (painted, one draw for all of them), so
+    // the streets read as lit at night without a real light per lamp
+    if (NEW_LOOK) {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 128; const c2 = cv.getContext('2d')!;
+      const gr = c2.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      c2.fillStyle = gr; c2.fillRect(0, 0, 128, 128);
+      const mat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4 });
+      this.glow = new THREE.InstancedMesh(new THREE.PlaneGeometry(18, 18).rotateX(-Math.PI / 2), mat, this.spots.length);
+      const M = new THREE.Matrix4();
+      this.spots.forEach((p, k) => { M.makeTranslation(p.x, Math.max(0.6, g.heightAt(p.x, p.z)) + 0.25, p.z); this.glow!.setMatrixAt(k, M); this.glow!.setColorAt(k, new THREE.Color(0)); });
+      this.glow.frustumCulled = false; this.glow.renderOrder = 2; this.glow.visible = false; this.lamps.add(this.glow);
+      for (const m of [this.heads.material, this.tubes.material] as THREE.MeshBasicMaterial[]) m.toneMapped = false;   // the lamps themselves stay bright and glow
+    }
     for (let i = 0; i < (NEW_LOOK ? 4 : 12); i++) { const l = new THREE.PointLight(NEW_LOOK ? 0xffe2b0 : 0xf0f4ff, 0, 34, 1.3); this.pool.push(l); this.lamps.add(l); }
   }
 
@@ -96,13 +110,15 @@ export class Clock {
     if (key !== this.shown) {
       this.shown = key;
       const c = new THREE.Color();
-      this.spotHead.forEach(([im, i], k) => { const lit = on && (!this.allowed || this.allowed.has(this.spotEdge[k])); c.set(lit ? (im === this.heads ? 0xfff2cc : 0xf2fbff) : 0x8a8a88); im!.setColorAt(i, c); });
+      const warm = new THREE.Color(0.55, 0.42, 0.24), off = new THREE.Color(0);
+      this.spotHead.forEach(([im, i], k) => { const lit = on && (!this.allowed || this.allowed.has(this.spotEdge[k])); c.set(lit ? (im === this.heads ? 0xfff2cc : 0xf2fbff) : 0x8a8a88); im!.setColorAt(i, c); this.glow?.setColorAt(k, lit ? warm : off); });
+      if (this.glow) { this.glow.visible = on; if (this.glow.instanceColor) this.glow.instanceColor.needsUpdate = true; }
       for (const im of [this.heads, this.tubes]) if (im.instanceColor) im.instanceColor.needsUpdate = true;
     }
     // the nearest few lamps cast real light
     if (on) {
       const near = this.spots.map((p, k) => ({ p, k, d: Math.hypot(p.x - cx, p.z - cz) })).filter(a => a.d < 120 && (!this.allowed || this.allowed.has(this.spotEdge[a.k]))).sort((a, b) => a.d - b.d);
-      this.pool.forEach((l, i) => { const a = near[i]; if (a) { l.position.set(a.p.x, a.p.y - 0.4, a.p.z); l.intensity = NEW_LOOK ? 55 : 140; } else l.intensity = 0; });
+      this.pool.forEach((l, i) => { const a = near[i]; if (a) { l.position.set(a.p.x, a.p.y - 0.4, a.p.z); l.intensity = NEW_LOOK ? 120 : 140; } else l.intensity = 0; });
     } else this.pool.forEach(l => (l.intensity = 0));
   }
 

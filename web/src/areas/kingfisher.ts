@@ -16,9 +16,10 @@ function tint(geo: THREE.BufferGeometry, hex: number): THREE.BufferGeometry {
 
 export function build(ctx: AreaContext): AreaInstance {
   const group = new THREE.Group(); group.name = 'kingfisher';
-  const at = kingfisherAt(ctx.d); if (!at) return { group };
+  const at = kingfisherAt(ctx.d, ctx.segs); if (!at) return { group };
   const parts: THREE.BufferGeometry[] = [];
-  const g0 = Math.max(0.6, ctx.g.heightAt(at.x, at.z));
+  const gy = (x: number, z: number) => Math.max(0.6, ctx.g.heightAt(x, z));
+  let g0 = 0; for (let a = 0; a < 6.28; a += 0.5) for (const r of [0, 8, 16]) g0 = Math.max(g0, gy(at.x + Math.cos(a) * r, at.z + Math.sin(a) * r));   // the house's floor: the highest ground under it
   // which way is the sea: the direction from the villa where the ground first turns to water
   let sea = 0, best = 1e9;
   for (let a = 0; a < Math.PI * 2; a += Math.PI / 16) for (let r = 20; r < 600; r += 10) if (ctx.g.isWet(at.x + Math.cos(a) * r, at.z + Math.sin(a) * r)) { if (r < best) { best = r; sea = a; } break; }
@@ -33,39 +34,45 @@ export function build(ctx: AreaContext): AreaInstance {
   };
   // the house: a long main block of two storeys facing the sea, a wing at each end stepping forward
   const H = 7.4;
-  box(14, H, 34, 0, 0, H / 2, WHITE); hip(15, 35.5, 0, 0, H, 4.2);
-  for (const sd of [-1, 1]) { box(16, H, 11, 6, sd * 20, H / 2, WHITE); hip(17, 12.2, 6, sd * 20, H, 3.8); }
-  box(14.4, 0.5, 34.4, 0, 0, H - 0.25, TRIM); box(14.4, 0.6, 34.4, 0, 0, 3.5, TRIM);   // cornice and the floor band
+  const DEEP = 8;   // the walls go this far down into the slope, so the house never floats
+  box(12, H + DEEP, 28, 0, 0, (H - DEEP) / 2, WHITE); hip(13, 29.5, 0, 0, H, 3.8);
+  for (const sd of [-1, 1]) { box(13, H + DEEP, 9, 5, sd * 16, (H - DEEP) / 2, WHITE); hip(14, 10.2, 5, sd * 16, H, 3.4); }
+  box(12.4, 0.5, 28.4, 0, 0, H - 0.25, TRIM); box(12.4, 0.6, 28.4, 0, 0, 3.5, TRIM);   // cornice and the floor band
   // the sea-facing verandahs: a run of white arches on both floors
   for (const y of [0, 3.7]) {
-    for (let k = -6; k <= 6; k++) {
-      box(0.6, 3.4, 0.6, 7.6, k * 2.6, y + 1.7, WHITE);
-      put(new THREE.CylinderGeometry(1.0, 1.0, 0.5, 10, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateY(Math.PI / 2), 7.6, k * 2.6 + 1.3, y + 3.0, WHITE);
+    for (let k = -5; k <= 5; k++) {
+      box(0.6, 3.4, 0.6, 7.6, k * 2.4, y + 1.7, WHITE);
+      put(new THREE.CylinderGeometry(0.9, 0.9, 0.5, 10, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateY(Math.PI / 2), 7.6, k * 2.4 + 1.2, y + 3.0, WHITE);
     }
-    box(2.8, 0.3, 32, 8.4, 0, y + 0.15, 0xc8b8a0);                                  // the verandah floor
-    box(0.2, 0.9, 32, 9.7, 0, y + 0.6, WHITE);                                       // its balustrade
+    box(2.8, y ? 0.3 : 0.3 + DEEP, 26, 7.4, 0, y ? y + 0.15 : 0.15 - DEEP / 2, 0xc8b8a0);   // the verandah floor (the lower one on a solid base)
+    box(0.2, 0.9, 26, 8.7, 0, y + 0.6, WHITE);                                       // its balustrade
   }
-  for (let k = -5; k <= 5; k++) for (const y of [1.6, 5.3]) box(0.1, 1.9, 1.1, 7.05, k * 2.6 + 1.3, y, DARK);   // windows behind
+  for (let k = -4; k <= 4; k++) for (const y of [1.6, 5.3]) box(0.1, 1.9, 1.1, 6.05, k * 2.4 + 1.2, y, DARK);   // windows behind
   // a porte-cochère on the landward side, over the drive
-  box(6, 0.6, 9, -10, 0, 4.2, WHITE); for (const s of [-4, 4]) for (const f of [-12.5, -8]) box(0.7, 4, 0.7, f, s, 2, WHITE);
+  box(6, 0.6, 9, -9, 0, 4.2, WHITE); for (const s of [-4, 4]) for (const f of [-11.5, -7]) box(0.7, 4 + DEEP, 0.7, f, s, 2 - DEEP / 2, WHITE);
   // the lawn down towards the sea, the pool with its deck, palms, a stone path
-  box(30, 0.25, 60, 30, 0, -0.2, 0x5f9a44);
-  box(6, 0.2, 16, 26, -6, 0.0, 0xd8cdb8); box(5, 0.22, 14, 26, -6, 0.03, 0x3fb0d0);   // pool
-  box(30, 0.26, 3, 30, 12, -0.15, 0xcbbfa8);
+  { const pf = 19, ps = -7, px = at.x + fx * pf + sx * ps, pz = at.z + fz * pf + sz * ps, py = gy(px, pz) - g0;
+    box(7, 0.6 + DEEP, 13, pf, ps, py + 0.3 - DEEP / 2, 0xd8cdb8); box(5, 0.2, 10.5, pf, ps, py + 0.62, 0x3fb0d0); }   // the pool on its deck
   // the compound wall with its grand gate on the landward side
   const R = KF_R;
-  for (const [f, s, lf, ls] of [[-R, 0, 0.5, 2 * R], [R, 0, 0.5, 2 * R], [0, -R, 2 * R, 0.5], [0, R, 2 * R, 0.5]] as [number, number, number, number][]) {
-    if (f === -R) { box(lf, 2.6, R - 6, f, -(R + 6) / 2, 1.3, WHITE); box(lf, 2.6, R - 6, f, (R + 6) / 2, 1.3, WHITE); continue; }   // the gap for the gate
-    box(lf, 2.6, ls, f, s, 1.3, WHITE);
-  }
-  for (const s of [-6, 6]) { box(1.6, 4.2, 1.6, -R, s, 2.1, WHITE); box(2.0, 0.5, 2.0, -R, s, 4.4, TRIM); }   // gate pillars
-  box(0.3, 2.4, 11, -R, 0, 1.3, 0x2c3a5a);                                                                    // the gate
+  const wallAt = (f: number, s0: number, along: 'f' | 's', L: number) => {
+    for (let t = -L / 2; t < L / 2; t += 4) {
+      const ff = along === 'f' ? f + t + 2 : f, ss = along === 's' ? s0 + t + 2 : s0;
+      if (f === -R && along === 's' && Math.abs(ss) < 6.5) continue;                    // the gap for the gate
+      const x = at.x + fx * ff + sx * ss, z = at.z + fz * ff + sz * ss, y = gy(x, z) - g0;
+      box(along === 'f' ? 4.05 : 0.5, 2.6 + 3, along === 's' ? 4.05 : 0.5, ff, ss, y + 1.3 - 1.5, WHITE);
+    }
+  };
+  wallAt(-R, 0, 's', 2 * R); wallAt(R, 0, 's', 2 * R); wallAt(0, -R, 'f', 2 * R); wallAt(0, R, 'f', 2 * R);
+  const gateY = (s0: number) => { const x = at.x + fx * -R + sx * s0, z = at.z + fz * -R + sz * s0; return gy(x, z) - g0; };
+  for (const s0 of [-6.5, 6.5]) { box(1.6, 4.2 + 3, 1.6, -R, s0, gateY(s0) + 2.1 - 1.5, WHITE); box(2.0, 0.5, 2.0, -R, s0, gateY(s0) + 4.4, TRIM); }   // gate pillars
+  box(0.3, 2.4, 12, -R, 0, gateY(0) + 1.3, 0x2c3a5a);                                                       // the gate
   // a sign on the pillar, as the visitors photograph it
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 128; const c = cv.getContext('2d')!;
   c.fillStyle = '#f7f3ea'; c.fillRect(0, 0, 512, 128); c.fillStyle = '#7a1e1e'; c.font = '700 54px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('KINGFISHER VILLA', 256, 66);
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
   const sign = new THREE.Mesh(new THREE.PlaneGeometry(7, 1.75), new THREE.MeshLambertMaterial({ map: tex }));
-  sign.position.set(at.x + fx * (-R - 0.35) + sx * 0, g0 + 3.2, at.z + fz * (-R - 0.35)); sign.rotation.y = rot - Math.PI / 2; group.add(sign);
+  sign.position.set(at.x + fx * (-R - 0.35), g0 + gateY(0) + 3.4, at.z + fz * (-R - 0.35)); sign.rotation.y = rot - Math.PI / 2; group.add(sign);
   // coconut palms round the lawn and along the wall
   const palm = (): THREE.BufferGeometry => {
     const p: THREE.BufferGeometry[] = []; let x = 0, y = 0;
@@ -75,7 +82,7 @@ export function build(ctx: AreaContext): AreaInstance {
   };
   const palmGeo = palm();
   for (let k = 0; k < 16; k++) {
-    const f = k < 8 ? 18 + (k % 4) * 9 : -R + 4 + (k % 8) * 12, s = k < 8 ? (k < 4 ? -24 : 24) : (k % 2 ? -R + 3 : R - 3);
+    const f = k < 8 ? 12 + (k % 4) * 5 : -R + 4 + (k % 8) * 8, s = k < 8 ? (k < 4 ? -22 : 22) : (k % 2 ? -R + 3 : R - 3);
     const x = at.x + fx * f + sx * s, z = at.z + fz * f + sz * s;
     parts.push(palmGeo.clone().rotateY(k * 1.3).translate(x, Math.max(0.6, ctx.g.heightAt(x, z)), z));
   }

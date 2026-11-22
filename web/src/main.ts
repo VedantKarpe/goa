@@ -68,7 +68,7 @@ async function start() {
   const si = new StreetIndex(roads.segs);
   // the landmarks: their Blender models stand on their map points, in place of the plain blocks there
   const lmBox = d.lm.flatMap(l => l.at.map(([x, y]) => [x + l.cov[0], x + l.cov[1], y + l.cov[2], y + l.cov[3]]));
-  const kf = kingfisherAt(d);   // the villa's grounds: its own model, not the map's plain boxes
+  const kf = kingfisherAt(d, roads.segs);   // the villa's grounds: its own model, not the map's plain boxes
   if (kf) d.places.push(['Kingfisher Villa', kf.x / T, kf.z / T]);
   const plain = { ...d, b: d.b.filter(([f]) => {
     let cx = 0, cy = 0; for (let i = 0; i < f.length; i += 2) { cx += f[i]; cy += f[i + 1]; } cx /= f.length / 2; cy /= f.length / 2;
@@ -486,8 +486,9 @@ async function start() {
       cullT = 0.3;
       areaMgr.refresh(px, pz);
       const far = fog.far + 150, near = 320;
-      cullChunks(blds.group, px, pz, far); cullChunks(terrain, px, pz, far + 300);   // building squares beyond the haze
-      for (const m of treeGroup.children) { const c = m.userData.cell as [number, number] | undefined; if (c) m.visible = Math.hypot(c[0] - px, c[1] - pz) < far + 170; }
+      cullChunks(blds.group, px, pz, far); cullChunks(terrain, px, pz, far + 100);   // building squares beyond the haze
+      const treeFar = NEW_LOOK ? Math.min(far + 170, 700) : far + 170;   // the new look's fuller trees: drawn out to where the haze takes them
+      for (const m of treeGroup.children) { const c = m.userData.cell as [number, number] | undefined; if (c) m.visible = Math.hypot(c[0] - px, c[1] - pz) < treeFar; }
       for (const gr of smallStuff) for (const o of gr.children) o.visible = Math.hypot(o.position.x - px, o.position.z - pz) < near || o.position.lengthSq() === 0;
     }
     look.render();

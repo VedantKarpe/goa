@@ -15,7 +15,8 @@ REG = __import__('os').environ.get('GOA_REGION', 'panjim')
 if REG != 'panjim':
     real = json.loads((ROOT / 'data' / f'{REG}.real.json').read_text(encoding='utf-8')); vil = json.loads((ROOT / 'data' / f'{REG}.map.json').read_text(encoding='utf-8'))
 if REG != 'panjim': vil['rows'] = [r.replace('S', 'W') for r in vil['rows']]   # the importer's sea fill is the game's water
-out = {'ox': 90 if REG != 'panjim' else 0, 'W': vil['W'], 'H': vil['H'], 'tile': vil['tile'], 'rows': vil['rows'], 'centre': vil['centre'], **real}
+OX_, OY_ = int(__import__('os').environ.get('GOA_OX', '90')), int(__import__('os').environ.get('GOA_OY', '0'))
+out = {'ox': OX_ if REG != 'panjim' else 0, 'oy': OY_ if REG != 'panjim' else 0, 'W': vil['W'], 'H': vil['H'], 'tile': vil['tile'], 'rows': vil['rows'], 'centre': vil['centre'], **real}
 dst = ROOT / 'web' / 'public' / 'data' / 'panjim.json'
 dst.parent.mkdir(parents=True, exist_ok=True)
 dst.write_text(json.dumps(out, separators=(',', ':')), encoding='utf-8')
