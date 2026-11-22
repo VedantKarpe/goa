@@ -58,6 +58,7 @@ export class AreaManager {
   update(dt: number, time: number, px: number, pz: number) { for (const a of this.live) a.update?.(dt, time, px, pz); }
   talk(px: number, pz: number): string | null { for (const a of this.live) { const t = a.talk?.(px, pz); if (t) return t; } return null; }
   tick(px: number, pz: number) { for (const a of this.live) { const t = a.tick?.(px, pz); if (t) return t; } return null; }
+  hold() { for (const a of this.live) { const h = a.hold?.(); if (h) return h; } return null; }
   /** Which areas are loaded (for testing). */
   get loaded(): string[] { return this.slots.filter(s => s.inst).map(s => s.entry.name); }
 }

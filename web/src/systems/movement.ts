@@ -7,9 +7,16 @@ import type { StreetIndex } from '../world/roads';
 export const BODY = 0.9;   // metres
 
 export class Movement {
+  /** Land beyond the map (an area such as Dona Paula): walkable, at its own height. */
+  extra: { free(x: number, z: number): boolean; y(x: number, z: number): number }[] = [];
+  private extraAt(X: number, Z: number) {
+    if (X >= T && Z >= T && X <= (this.g.W - 1) * T && Z <= (this.g.H - 1) * T) return null;   // on the map: the map decides
+    for (const e of this.extra) if (e.free(X, Z)) return e; return null; }
+
   constructor(private g: Ground, private bi: BuildingIndex, private si: StreetIndex) {}
 
   free(X: number, Z: number): boolean {
+    if (this.extraAt(X, Z) && !this.si.at(X, Z)) return true;
     if (X < T || Z < T || X > (this.g.W - 1) * T || Z > (this.g.H - 1) * T) return false;   // the map's edge
     if (this.si.at(X, Z)) return true;                                                      // a street or path, even across water
     if (this.g.isWet(X, Z)) return false;
@@ -36,6 +43,7 @@ export class Movement {
   /** The height to stand at: a bridge's deck, or the ground. */
   standY(X: number, Z: number): number {
     const s = this.si.at(X, Z);
+    const e = s ? null : this.extraAt(X, Z); if (e) return e.y(X, Z);
     return s && s.deck !== null ? (s.deckAt ? s.deckAt(X, Z) : s.deck) : Math.max(0.2, this.g.heightAt(X, Z));
   }
 }

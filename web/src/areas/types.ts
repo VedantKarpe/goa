@@ -13,7 +13,16 @@ export interface AreaContext {
   houses: Building[];
   segs: Seg[];
   free: (x: number, z: number) => boolean;
+  /** The time of day, in minutes after midnight (for people's working hours). */
+  clock: () => number;
+  /** The child's points (things that cost money check them). */
+  points: () => number;
+  /** Build a person's figure, dressed as their cast entry says. */
+  figure: (c: Cast) => THREE.Group;
 }
+
+/** Where an area holds the child for now (a ride): the game puts them there instead of walking. */
+export interface Hold { x: number; z: number; y: number; heading: number }
 
 /** A built area: its scenery, and the hooks the game calls while it is loaded. */
 export interface AreaInstance {
@@ -24,6 +33,8 @@ export interface AreaInstance {
   talk?(px: number, pz: number): string | null;
   /** Each frame: something happened (a task done, a find). */
   tick?(px: number, pz: number): { msg: string; pts: number } | null;
+  /** While the child is on a ride here: where they are. */
+  hold?(): Hold | null;
   /** The people who live and work here: they join the town the first time the area loads. */
   cast?: Cast[];
 }

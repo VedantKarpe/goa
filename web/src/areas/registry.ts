@@ -2,6 +2,7 @@
 // folder (a `build(ctx)` that returns its scenery and hooks) and add a line here.
 import { T, type PanjimData } from '../world/data';
 import type { AreaEntry } from './types';
+import { DP } from './donapaulaLand';
 
 /** Miramar's sand (world tile centres): the base game uses it for the place pin and the beach cows. */
 export function beachSand(d: PanjimData): [number, number][] {
@@ -17,5 +18,6 @@ export function areas(d: PanjimData): AreaEntry[] {
   if (fq) out.push({ name: 'Fontainhas', ...fq, r: 200, load: () => import('./fontainhas') });
   const sand = beachSand(d);
   if (sand.length) out.push({ name: 'Miramar', x: sand.reduce((a, q) => a + q[0], 0) / sand.length, z: sand.reduce((a, q) => a + q[1], 0) / sand.length, r: 220, load: () => import('./miramar') });
+  out.push({ name: 'Dona Paula', x: DP.head.x - 60, z: DP.head.z - 40, r: 300, load: () => import('./donapaula') });
   return out;
 }

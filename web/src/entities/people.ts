@@ -118,7 +118,7 @@ export class People {
   }
 
   // how someone looks: their clothes, hair, and what they carry
-  private build(c: Cast): { obj: THREE.Group; legs: THREE.Object3D[] } {
+  build(c: Cast): { obj: THREE.Group; legs: THREE.Object3D[] } {
     const obj = new THREE.Group(), mat = (col: number) => new THREE.MeshLambertMaterial({ color: col });
     const part = (geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z = 0, p: THREE.Object3D = obj) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; p.add(o); return o; };
     const skin = mat([0xd8a880, 0xb8794a, 0x7a4e30][c.skin]), top = mat(c.top), bottom = mat(c.bottom);

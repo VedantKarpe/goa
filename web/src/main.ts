@@ -32,6 +32,7 @@ import { Blackout } from './systems/blackout';
 import { buildPromenade } from './world/promenade';
 import { Cows } from './entities/cows';
 import { Rentals } from './entities/rentals';
+import { DP, donaPaulaLand } from './areas/donapaulaLand';
 import { buildShops, buildLoveSign } from './world/shops';
 import { Campaign } from './systems/campaign';
 import { AreaManager } from './areas/manager';
@@ -114,7 +115,9 @@ async function start() {
   // the areas of Goa with their own scenery and characters (Fontainhas, Miramar...) load as the child comes near them
   const sand = beachSand(d);
   if (sand.length) d.places.push(['Miramar', sand.reduce((a, q) => a + q[0], 0) / sand.length / T, sand.reduce((a, q) => a + q[1], 0) / sand.length / T]);
-  const areaMgr = new AreaManager(areas(d), { d, g, houses: blds.list, segs: roads.segs, free: (x, z) => move.free(x, z) }, scene);
+  // Dona Paula lies past the map's southern edge: its land is walkable, and the pilots go there
+  move.extra.push(donaPaulaLand); d.places.push(['Dona Paula', DP.drop.x / T, DP.drop.z / T]);
+  const areaMgr = new AreaManager(areas(d), { d, g, houses: blds.list, segs: roads.segs, free: (x, z) => move.free(x, z), clock: () => day.min, points: () => st.points, figure: c => people.build(c).obj }, scene);
   areaMgr.onLoaded = (name, grp, inst, first) => {
     if (name === 'Fontainhas') toonify(grp, [], () => true); else toonify(grp, [grp], () => false);   // the cartoon look, ink outlines as before
     if (first && inst.cast?.length) people.add(inst.cast);   // the area's own people move into town
@@ -291,7 +294,12 @@ async function start() {
     // a night passes three times faster than a day; once tonight's story is won (or lost), on to morning quickly
     day.rate = night ? (campaign.phase === 'won' || campaign.phase === 'lost' ? 12 : 3) : 2;
     let speed = 0;
-    if (traffic.riding) {
+    const held = areaMgr.hold();   // on a ride in an area (a jet ski at Dona Paula)
+    if (held) {
+      if (bikes.riding) bikes.park(px, pz);
+      if (traffic.riding) traffic.hopOff();
+      px = held.x; pz = held.z; child.heading = held.heading;
+    } else if (traffic.riding) {
       // riding: the child sits on the vehicle
       const v = traffic.riding; px = v.x; pz = v.z; child.heading = Math.atan2(v.hz, v.hx);
     } else {
@@ -315,7 +323,7 @@ async function start() {
       }
     }
     const gy = move.standY(px, pz);
-    const py = traffic.riding ? traffic.riding.obj.position.y + 2.2 : bikes.riding ? gy + 1.3 : gy;
+    const py = held ? held.y : traffic.riding ? traffic.riding.obj.position.y + 2.2 : bikes.riding ? gy + 1.3 : gy;
     bikes.follow(px, gy + 0.15, pz, child.heading, performance.now() / 1000);
     child.obj.position.set(px, py, pz);
     const noTorch = campaign.active && !!campaign.cur?.noTorch;
@@ -359,7 +367,7 @@ async function start() {
     }
     // rush hours: the roads fill up 8-10 am and 5-7:30 pm, thin out at midday and empty late at night
     { const h = day.min / 60; traffic.count = (h >= 8 && h < 10) || (h >= 17 && h < 19.5) ? 58 : (h >= 7 && h < 21) ? 34 : (h >= 21 && h < 23) || (h >= 6 && h < 7) ? 20 : 10; }
-    const az = areaMgr.tick(px, pz); if (az) { st.points += az.pts; sfx.done(); hud.whisper(az.msg, 6, true); }
+    const az = areaMgr.tick(px, pz); if (az) { st.points = Math.max(0, st.points + az.pts); if (az.msg) { sfx.done(); hud.whisper(az.msg, 6, true); } }
     boats.update(dt, day.dark); cows.update(dt); areaMgr.update(dt, performance.now() / 1000, px, pz);
     // the shop the child is standing by
     shopT -= dt;
