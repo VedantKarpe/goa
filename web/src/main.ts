@@ -258,7 +258,7 @@ async function start() {
   const smallStuff = [bikes.group, cows.group, pumps.group, traffic.group];   // (people show and hide themselves)
   const shopTag = document.createElement('div'); shopTag.id = 'shopTag'; document.body.appendChild(shopTag);
   shopTag.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#7a1e1ee6;color:#fff4d8;font:600 14px Georgia,serif;padding:4px 12px;border-radius:6px;border:2px solid #f2c230;display:none;pointer-events:none;z-index:5';
-  (window as unknown as { rk: unknown }).rk = { rentals, areaMgr, campaign, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
+  (window as unknown as { rk: unknown }).rk = { look, rentals, areaMgr, campaign, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, monsters, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
   // the sun's disc (a soft glowing sprite, not fogged)
   const sunDisc = (() => {
     const cv = document.createElement('canvas'); cv.width = cv.height = 128; const c = cv.getContext('2d')!;
@@ -498,6 +498,7 @@ async function start() {
     const dt = clock.getDelta();
     frame(Math.min(0.05, dt));
     if (dt > 1 / 28) { slow++; fast = 0; } else if (dt < 1 / 57) { fast++; slow = 0; }
+    if (slow > 60 && look.degrade()) slow = 0;   // too slow: first drop an effect, then draw fewer pixels
     if (slow > 60 && pr > minPR) { pr = Math.max(minPR, pr - 0.25); renderer.setPixelRatio(pr); resize(); slow = 0; }
     if (fast > 180 && pr < maxPR) { pr = Math.min(maxPR, pr + 0.25); renderer.setPixelRatio(pr); resize(); fast = 0; }
   });

@@ -18,6 +18,8 @@ export class Look {
   private composer: EffectComposer | null = null;
   private ao: GTAOPass | null = null;
   private bloom: UnrealBloomPass | null = null;
+  private scale = 1;            // drawn at this share of the screen's pixels (lowered when frames run slow)
+  private size: [number, number, number] = [1, 1, 1];
 
   constructor(private renderer: THREE.WebGLRenderer, private scene: THREE.Scene, private camera: THREE.PerspectiveCamera) {
     if (!NEW_LOOK) return;
@@ -26,11 +28,13 @@ export class Look {
     const u = this.sky.material.uniforms;
     u.turbidity.value = 7; u.rayleigh.value = 1.4; u.mieCoefficient.value = 0.006; u.mieDirectionalG.value = 0.86;   // a humid, hazy tropical sky
     scene.add(this.sky);
-    this.composer = new EffectComposer(renderer);
+    // the effects draw into a multisampled target (smooth edges) at no more than 1x the screen's pixels: drawing them at
+    // the 2x the plain game uses made a big screen four times the work
+    this.composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
     this.composer.addPass(new RenderPass(scene, camera));
-    if (!LIGHT) {
+    if (!LIGHT && q.includes('ao')) {   // the soft corner shadows cost three quarters of a frame: only on request (?ao)
       this.ao = new GTAOPass(scene, camera, 1, 1);
-      this.ao.updateGtaoMaterial({ radius: 2.2, distanceExponent: 1.4, thickness: 1.5, scale: 1.0, samples: 12 });
+      this.ao.updateGtaoMaterial({ radius: 2.2, distanceExponent: 1.4, thickness: 1.5, scale: 1.0, samples: 8 });
       this.ao.blendIntensity = 0.85;
       this.composer.addPass(this.ao);
     }
@@ -49,12 +53,22 @@ export class Look {
     // a light, slightly blue tropical haze by day, warm at dusk, deep blue at night
     if (this.scene.fog) (this.scene.fog as THREE.Fog).color.setRGB(0.68 - dark * 0.54, 0.78 - dark * 0.6, 0.88 - dark * 0.6);
     this.renderer.toneMappingExposure = 1.0 - dark * 0.4;
-    if (this.bloom) { this.bloom.strength = 0.25 + dark * 0.6; this.bloom.threshold = 0.92 - dark * 0.25; }
+    if (this.bloom) { this.bloom.strength = 0.2 + dark * 0.25; this.bloom.threshold = 0.95 - dark * 0.08; }   // only the lamps themselves glow, not what they light
   }
 
   setSize(w: number, h: number, pr: number) {
     if (!this.composer) return;
-    this.composer.setPixelRatio(pr); this.composer.setSize(w, h);
+    this.size = [w, h, pr];
+    this.composer.setPixelRatio(Math.min(1, pr) * this.scale); this.composer.setSize(w, h);
+  }
+
+  /** Frames are running slow: give up the costliest effect still on (the occlusion first, then the glow). Returns false
+   *  when there is nothing left to drop. */
+  degrade(): boolean {
+    if (this.ao?.enabled) { this.ao.enabled = false; return true; }
+    if (this.bloom?.enabled) { this.bloom.enabled = false; return true; }
+    if (this.composer && this.scale > 0.6) { this.scale -= 0.15; this.setSize(...this.size); return true; }
+    return false;
   }
 
   render() {

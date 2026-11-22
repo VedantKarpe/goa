@@ -1,6 +1,7 @@
 // The day: a game minute passes every real second (so a day is 24 minutes). The sky, sun and moon follow it; at dusk
 // the street tubelights come on, and the few nearest the child light the ground for real.
 import * as THREE from 'three';
+import { NEW_LOOK } from '../world/look';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Network } from '../world/network';
 import type { Ground } from '../world/data';
@@ -70,7 +71,8 @@ export class Clock {
     this.lamps.add(this.heads, this.tubes);
     for (const h of this.spotHead) { if (h[1] < 0) { h[0] = this.tubes; h[1] = -h[1] - 1; } else h[0] = this.heads; }
     (this.heads.material as THREE.MeshBasicMaterial).color.set(0xffffff); (this.tubes.material as THREE.MeshBasicMaterial).color.set(0xffffff);
-    for (let i = 0; i < 12; i++) { const l = new THREE.PointLight(0xf0f4ff, 0, 34, 1.3); this.pool.push(l); this.lamps.add(l); }
+    // the new look: fewer, warmer lamp lights (each one costs every pixel on screen)
+    for (let i = 0; i < (NEW_LOOK ? 4 : 12); i++) { const l = new THREE.PointLight(NEW_LOOK ? 0xffe2b0 : 0xf0f4ff, 0, 34, 1.3); this.pool.push(l); this.lamps.add(l); }
   }
 
   get night(): boolean { return this.min < 6 * 60 || this.min > 18 * 60 + 40; }
@@ -100,7 +102,7 @@ export class Clock {
     // the nearest few lamps cast real light
     if (on) {
       const near = this.spots.map((p, k) => ({ p, k, d: Math.hypot(p.x - cx, p.z - cz) })).filter(a => a.d < 120 && (!this.allowed || this.allowed.has(this.spotEdge[a.k]))).sort((a, b) => a.d - b.d);
-      this.pool.forEach((l, i) => { const a = near[i]; if (a) { l.position.set(a.p.x, a.p.y - 0.4, a.p.z); l.intensity = 140; } else l.intensity = 0; });
+      this.pool.forEach((l, i) => { const a = near[i]; if (a) { l.position.set(a.p.x, a.p.y - 0.4, a.p.z); l.intensity = NEW_LOOK ? 55 : 140; } else l.intensity = 0; });
     } else this.pool.forEach(l => (l.intensity = 0));
   }
 
