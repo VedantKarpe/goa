@@ -167,7 +167,7 @@ export function cullChunks(group: THREE.Object3D, x: number, z: number, r: numbe
  *  a balcony with a railing at every bay of every floor on the long sides, a parapet round the flat roof, and the black
  *  water tank on top. Everything is pushed into `out` (one merged mesh per map square). */
 function goanDetails(out: THREE.BufferGeometry[], p: [number, number][], base: number, h: number, storeys: number, flats: boolean,
-  front: number, roof: THREE.Color, seed: number) {
+  front: number, roof: THREE.Color, seed: number, clear = 99) {
   const n = p.length, cx = p.reduce((a, q) => a + q[0], 0) / n, cz = p.reduce((a, q) => a + q[1], 0) / n;
   const WHITE = 0xf6f2e8, ROOF = roof.getHex();
   const piece = (l: number, hh: number, w: number, x: number, y: number, z: number, ang: number, col: number) =>
@@ -186,7 +186,7 @@ function goanDetails(out: THREE.BufferGeometry[], p: [number, number][], base: n
       piece(e.L + 0.2, 0.7, 0.3, e.mx + e.nx * 0.1, base + 0.35, e.mz + e.nz * 0.1, e.ang, 0x8c7a68);                  // plinth
     }
     const e = edge(front);
-    if (e.L >= 6) {
+    if (e.L >= 6 && clear > 4.2) {   // a porch only where there is room before the road's edge
       const W = Math.min(e.L * 0.62, 9), D = 2.6, fx = e.mx + e.nx * (D / 2 + 0.1), fz = e.mz + e.nz * (D / 2 + 0.1), fl = base + 0.6;
       piece(W, 0.6, D, fx, base + 0.3, fz, e.ang, 0xa4573c);                                                         // the porch floor, laterite red
       for (let k = 0; k <= 3; k++) {                                                                                  // its white pillars
@@ -221,12 +221,12 @@ function goanDetails(out: THREE.BufferGeometry[], p: [number, number][], base: n
   }
 }
 
-export function buildBuildings(d: PanjimData, g: Ground, segs: { ax: number; az: number; bx: number; bz: number }[] = []): { group: THREE.Group; list: Building[] } {
+export function buildBuildings(d: PanjimData, g: Ground, segs: { ax: number; az: number; bx: number; bz: number; half: number }[] = []): { group: THREE.Group; list: Building[] } {
   // which side of a house faces the street: the edge whose middle is nearest a street (a coarse grid over the streets)
-  const SG = new Map<number, { ax: number; az: number; bx: number; bz: number }[]>();
+  const SG = new Map<number, { ax: number; az: number; bx: number; bz: number; half: number }[]>();
   for (const sg of segs) for (let t = 0; t <= 1; t += 0.25) { const x = sg.ax + (sg.bx - sg.ax) * t, z = sg.az + (sg.bz - sg.az) * t, k = Math.floor(x / 40) * 4096 + Math.floor(z / 40); let a = SG.get(k); if (!a) SG.set(k, a = []); if (!a.includes(sg)) a.push(sg); }
   const streetDist = (x: number, z: number) => { let best = 1e9; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (const sg of SG.get((Math.floor(x / 40) + i) * 4096 + Math.floor(z / 40) + j) ?? []) {
-    const vx = sg.bx - sg.ax, vz = sg.bz - sg.az, L2 = vx * vx + vz * vz || 1, t = Math.max(0, Math.min(1, ((x - sg.ax) * vx + (z - sg.az) * vz) / L2)); best = Math.min(best, Math.hypot(sg.ax + vx * t - x, sg.az + vz * t - z)); } return best; };
+    const vx = sg.bx - sg.ax, vz = sg.bz - sg.az, L2 = vx * vx + vz * vz || 1, t = Math.max(0, Math.min(1, ((x - sg.ax) * vx + (z - sg.az) * vz) / L2)); best = Math.min(best, Math.hypot(sg.ax + vx * t - x, sg.az + vz * t - z) - sg.half); } return best; };   // metres clear of the road's edge (negative: on the road)
   const named = d.named ?? [];
   // buildings are merged by map squares (CHUNK metres across), one mesh each: squares off-screen are skipped by the
   // camera's frustum test, and far ones are hidden (cullChunks), so a big map costs little more than a small one
@@ -241,6 +241,8 @@ export function buildBuildings(d: PanjimData, g: Ground, segs: { ax: number; az:
     // is this one of the named buildings? (its recorded middle falls inside this outline)
     const mx = p.reduce((a, q) => a + q[0], 0) / p.length, mz = p.reduce((a, q) => a + q[1], 0) / p.length;
     { const k = Math.floor(mx / CHUNK) * 4096 + Math.floor(mz / CHUNK); let b = buckets.get(k); if (!b) buckets.set(k, b = []); geos = b; }
+    // a building the road runs through (the map's footprint and the drawn road disagree): leave it out, not over the road
+    if (segs.length && !kind && streetDist(mx, mz) < 0.5) return;
     const nm = named.find(n => inPoly(p, n[2] * T, n[3] * T) || Math.hypot(n[2] * T - mx, n[3] * T - mz) < 6);
     const ov = nm ? OVERRIDE[nm[1]] : undefined;
     const style = ov?.style ?? nm?.[0] ?? '';
@@ -275,7 +277,7 @@ export function buildBuildings(d: PanjimData, g: Ground, segs: { ax: number; az:
     if (NEW_LOOK && !kind && style !== 'church' && style !== 'temple' && convex(p) && p.length <= 8) {
       const flats = style === 'modern' || storeys >= 3 && area > 250;
       let front = 0, fd = 1e9; for (let i = 0; i < p.length; i++) { const a = p[i], b2 = p[(i + 1) % p.length]; const dd = streetDist((a[0] + b2[0]) / 2, (a[1] + b2[1]) / 2); if (dd < fd) { fd = dd; front = i; } }
-      if (flats || area < 700) goanDetails(geos, p, base, h, storeys, flats, front, tiled ? roofTile : roofFlat, idx);
+      if (flats || area < 700) goanDetails(geos, p, base, h, storeys, flats, front, tiled ? roofTile : roofFlat, idx, fd);
     }
     if (style === 'church') {
       // as St. Inez and the Panjim chapels: a white baroque front at the end of the nave, a scrolled gable with a cross

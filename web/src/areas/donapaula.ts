@@ -8,7 +8,7 @@ import { WATER_Y } from '../world/data';
 import type { AreaContext, AreaInstance, Hold } from './types';
 import type { Cast } from '../entities/cast';
 import { buildCar, pick, ROAD_MIX } from '../entities/cars';
-import { DP, donaPaulaLand } from './donapaulaLand';
+import { DP, donaPaulaLand, isletY } from './donapaulaLand';
 
 const RIDE_COST = 100;          // points: Rs 500 (a stuck car pushed out pays Rs 200, 40 points)
 const RIDE_TIME = 34;           // seconds
@@ -75,7 +75,9 @@ export function build(ctx: AreaContext): AreaInstance {
     const L = Math.hypot(x1 - x0, z1 - z0), a = -Math.atan2(z1 - z0, x1 - x0);
     jet.push(box(L, 0.7, 0.35, (x0 + x1) / 2, JY + 0.35, (z0 + z1) / 2, parapet, a), box(L, 0.08, 0.5, (x0 + x1) / 2, JY + 0.74, (z0 + z1) / 2, 0xdcd6ca, a));
   };
-  deck(J.x, (J.z0 + J.z1) / 2, J.w, J.z1 - J.z0);
+  const RAMP = 14, SPIT = 0.8, rise = Math.atan2(JY - SPIT, RAMP);
+  deck(J.x, (J.z0 + RAMP + J.z1) / 2, J.w, J.z1 - J.z0 - RAMP);
+  jet.push(tint(new THREE.BoxGeometry(J.w, 0.7, Math.hypot(RAMP, JY - SPIT) + 0.4).rotateX(rise).translate(J.x, (SPIT + JY) / 2 - 0.35, J.z0 + RAMP / 2), pave));   // the ramp up from the spit
   deck((A.x0 + A.x1) / 2, A.z, A.x1 - A.x0, A.w);
   deck(HD.x, (HD.z0 + HD.z1) / 2, HD.w, HD.z1 - HD.z0);
   wall(J.x + J.w / 2, J.z0, J.x + J.w / 2, A.z - A.w / 2);                // the walk's east side, up to the arm
@@ -85,24 +87,45 @@ export function build(ctx: AreaContext): AreaInstance {
   wall(HD.x - HD.w / 2, HD.z0, HD.x + HD.w / 2, HD.z0); wall(HD.x - HD.w / 2, HD.z1, HD.x + HD.w / 2, HD.z1);
   // the blue-tarp stalls down the walk's west side: caps, goggles, shell necklaces, cold drinks
   const tarp = [0x2a6fd0, 0x3a82e0, 0x1f5fb8];
-  for (let z = J.z0 + 6, i = 0; z < J.z1 - 14; z += 5.2, i++) {
+  for (let z = J.z0 + 18, i = 0; z < J.z1 - 14; z += 5.2, i++) {
     const x = J.x - J.w / 2 + 1.6;
     jet.push(box(2.6, 1.0, 4.4, x, JY + 0.5, z, 0xd8c8a8), box(3.0, 0.12, 4.9, x + 0.2, JY + 2.4, z, tarp[i % 3], 0), box(0.1, 2.4, 0.1, x + 1.5, JY + 1.2, z - 2.2, 0x888888));
     for (let k = 0; k < 4; k++) jet.push(box(0.45, 0.35, 0.45, x - 0.6 + (k % 2) * 0.9, JY + 1.2, z - 1.2 + k * 0.8, awn[(i + k) % 6]));
   }
   // the islet: red laterite rocks round it, scrub and a few palms on top, and the white viewpoint with its steps
-  { const iy = Math.max(1.2, gy(V.x, V.z));
-    for (let k = 0; k < 34; k++) {
-      const a = (k / 34) * Math.PI * 2 + rnd() * 0.15, r = V.r * (0.8 + rnd() * 0.35), s = 1.6 + rnd() * 2.4;
-      jet.push(tint(new THREE.DodecahedronGeometry(s, 0).scale(1.2, 0.7, 1).rotateY(rnd() * 6).translate(V.x + Math.cos(a) * r, s * 0.25, V.z + Math.sin(a) * r), [0x8a3a26, 0x9c4630, 0x7a3220][k % 3]));
+  {
+    // the knoll: rings of points round the middle, each lifted to the hill's height with a little roughness
+    const R = 9, SEG = 30, pos: number[] = [], idx: number[] = [];
+    for (let i = 0; i <= R; i++) for (let k = 0; k < SEG; k++) {
+      const a = k / SEG * Math.PI * 2, r = V.r * 1.08 * i / R, x = V.x + Math.cos(a) * r, z = V.z + Math.sin(a) * r;
+      const y = i === R ? -1.5 : isletY(x, z) + (i > 0 ? (rnd() - 0.5) * 0.9 : 0);
+      pos.push(x, y, z);
     }
-    jet.push(tint(new THREE.CylinderGeometry(V.r * 0.8, V.r, iy + 1.5, 14).translate(V.x, (iy - 1.5) / 2, V.z), 0x8e4a32));   // the rock itself
-    for (let k = 0; k < 10; k++) { const a = rnd() * 6.28, r = rnd() * V.r * 0.6; jet.push(tint(new THREE.IcosahedronGeometry(1.4 + rnd(), 1).scale(1.2, 0.8, 1.2).translate(V.x + Math.cos(a) * r, iy + 1.2, V.z + Math.sin(a) * r), k % 2 ? 0x3f7a34 : 0x55893c)); }
-    const vx = V.x - 6, vz = V.z + 2;
-    jet.push(box(9, 0.6, 9, vx, iy + 0.3, vz, 0xeeeae0), box(8, 3.2, 8, vx, iy + 2.2, vz, 0xf6f3ea), box(9.2, 0.5, 9.2, vx, iy + 4.0, vz, 0xe2ddd0));
+    for (let i = 0; i < R; i++) for (let k = 0; k < SEG; k++) {
+      const a0 = i * SEG + k, a1 = i * SEG + (k + 1) % SEG, b0 = a0 + SEG, b1 = a1 + SEG;
+      idx.push(a0, a1, b0, a1, b1, b0);
+    }
+    const knoll = new THREE.BufferGeometry(); knoll.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); knoll.setIndex(idx);
+    const kn = knoll.toNonIndexed(); kn.computeVertexNormals(); jet.push(tint(kn, 0x8e4a32));
+    for (let k = 0; k < 40; k++) {                                                         // boulders round its foot
+      const a = (k / 40) * Math.PI * 2 + rnd() * 0.15, r = V.r * (0.85 + rnd() * 0.3), s2 = 1.6 + rnd() * 2.4, x = V.x + Math.cos(a) * r, z = V.z + Math.sin(a) * r;
+      jet.push(tint(new THREE.DodecahedronGeometry(s2, 0).scale(1.2, 0.7, 1).rotateY(rnd() * 6).translate(x, Math.max(0, isletY(x, z) - s2 * 0.4), z), [0x8a3a26, 0x9c4630, 0x7a3220][k % 3]));
+    }
+    for (let k = 0; k < 14; k++) {                                                          // scrub on the slopes
+      const a = rnd() * 6.28, r = V.r * (0.2 + rnd() * 0.55), x = V.x + Math.cos(a) * r, z = V.z + Math.sin(a) * r;
+      jet.push(tint(new THREE.IcosahedronGeometry(1.4 + rnd(), 1).scale(1.2, 0.8, 1.2).translate(x, isletY(x, z) + 0.6, z), k % 2 ? 0x3f7a34 : 0x55893c));
+    }
+    // the white viewpoint on the top
+    const vx = V.x - 2, vz = V.z, iy = isletY(vx, vz) - 0.3;
+    jet.push(box(10, 1.0, 10, vx, iy + 0.2, vz, 0xeeeae0), box(8, 3.2, 8, vx, iy + 2.2, vz, 0xf6f3ea), box(9.2, 0.5, 9.2, vx, iy + 4.0, vz, 0xe2ddd0));
     jet.push(tint(new THREE.SphereGeometry(2.8, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2).translate(vx, iy + 4.2, vz), 0xf6f3ea));
-    for (const [dx, dz] of [[-4, 0], [4, 0], [0, -4], [0, 4]]) jet.push(box(dx ? 0.2 : 2.6, 2.0, dx ? 2.6 : 0.2, vx + dx * 1.01, iy + 1.6, vz + dz * 1.01, 0x3a3a3e));   // the arched openings
-    for (let k = 0; k < 5; k++) jet.push(box(4, 0.4, 1.2, J.x - J.w / 2 - 2, JY - 0.2 - k * 0.3, J.z1 + 1 + k * 1.2, 0xe2ddd0));   // steps up from the walk
+    for (const [dx, dz] of [[-4, 0], [4, 0], [0, -4], [0, 4]]) jet.push(box(dx ? 0.2 : 2.6, 2.0, dx ? 2.6 : 0.2, vx + dx * 1.01, iy + 1.6, vz + dz * 1.01, 0x3a3a3e));   // arched openings
+    // white steps from the end of the walk up the knoll to the viewpoint
+    const sx = J.x - J.w / 2, sz = J.z1 - 4;
+    for (let k = 0; k <= 12; k++) {
+      const t = k / 12, x = sx + (vx + 5 - sx) * t, z = sz + (vz - sz) * t, y = JY + (isletY(vx + 5, vz) - JY) * t;
+      jet.push(box(1.4, 0.35, 3, x, y - 0.1, z, 0xe2ddd0, -Math.atan2(vz - sz, vx + 5 - sx)));
+    }
   }
   // the statue of the couple on its pedestal, on the rocks where the walk starts
   {

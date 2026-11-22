@@ -18,7 +18,15 @@ export const DP = {
   beach: { x: 1440, z: 5410 },
   skis: { x: 1540, z: 5470 },
   jettyY: 2.4,
+  /** the islet is a knoll of laterite this high in the middle */
+  isletH: 9,
 };
+
+/** The knoll's height at (x, z): a rounded hill falling to the water at its edge. */
+export function isletY(x: number, z: number): number {
+  const V = DP.view, k = Math.min(1, Math.hypot(x - V.x, z - V.z) / V.r);
+  return 1.2 + (DP.isletH - 1.2) * (1 - k * k) * (1 - k * 0.3);
+}
 
 const rect = (x: number, z: number, x0: number, x1: number, z0: number, z1: number) => x > x0 && x < x1 && z > z0 && z < z1;
 const onJetty = (x: number, z: number) => {
@@ -28,8 +36,12 @@ const onJetty = (x: number, z: number) => {
     || rect(x, z, H.x - H.w / 2 + 0.8, H.x + H.w / 2 - 0.8, H.z0, H.z1);
 };
 
-/** The jetty and the T-pier, walkable over the water (for the game's movement). */
+const onIslet = (x: number, z: number) => Math.hypot(x - DP.view.x, z - DP.view.z) < DP.view.r - 3;
+/** The walk rises from the spit to the deck over its first stretch. */
+const RAMP = 14, SPIT = 0.8;
+
+/** The jetty, the T-pier and the islet's knoll (for the game's movement). */
 export const donaPaulaLand = {
-  free: onJetty,
-  y: () => DP.jettyY,
+  free: (x: number, z: number) => onJetty(x, z) || onIslet(x, z),
+  y: (x: number, z: number) => onIslet(x, z) && !onJetty(x, z) ? isletY(x, z) : z < DP.jetty.z0 + RAMP && Math.abs(x - DP.jetty.x) < DP.jetty.w ? SPIT + (DP.jettyY - SPIT) * Math.max(0, (z - DP.jetty.z0) / RAMP) : DP.jettyY,
 };
