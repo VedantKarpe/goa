@@ -49,6 +49,7 @@ export function buildTerrain(d: PanjimData, g: Ground, solidAt: (X: number, Z: n
   if (NEW_LOOK) groundDetail(mat);
   for (let j0 = 0; j0 < H; j0 += C) for (let i0 = 0; i0 < W; i0 += C) {
   const cw = Math.min(C, W - i0), chh = Math.min(C, H - j0);
+  { let land = false; for (let j = Math.max(0, j0 - 1); j < Math.min(H, j0 + chh + 1) && !land; j++) for (let i = Math.max(0, i0 - 1); i < Math.min(W, i0 + cw + 1); i++) if (!g.wet[j * W + i]) { land = true; break; } if (!land) continue; }   // all sea: no ground to draw
   const geo = new THREE.PlaneGeometry(cw * T, chh * T, cw * SUB, chh * SUB);
   geo.rotateX(-Math.PI / 2);                     // lie flat: the plane's rows run along +Z (south)
   geo.translate((i0 + cw / 2) * T, 0, (j0 + chh / 2) * T);

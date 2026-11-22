@@ -35,7 +35,8 @@ import { Blackout } from './systems/blackout';
 import { buildPromenade } from './world/promenade';
 import { Cows } from './entities/cows';
 import { Rentals } from './entities/rentals';
-import { donaPaulaLand } from './areas/donapaulaLand';
+import { donaPaulaLand, shiftDP } from './areas/donapaulaLand';
+import { kingfisherAt, KF_R } from './areas/kingfisherSpot';
 import { buildShops, buildLoveSign } from './world/shops';
 import { Campaign } from './systems/campaign';
 import { AreaManager } from './areas/manager';
@@ -67,8 +68,11 @@ async function start() {
   const si = new StreetIndex(roads.segs);
   // the landmarks: their Blender models stand on their map points, in place of the plain blocks there
   const lmBox = d.lm.flatMap(l => l.at.map(([x, y]) => [x + l.cov[0], x + l.cov[1], y + l.cov[2], y + l.cov[3]]));
+  const kf = kingfisherAt(d);   // the villa's grounds: its own model, not the map's plain boxes
+  if (kf) d.places.push(['Kingfisher Villa', kf.x / T, kf.z / T]);
   const plain = { ...d, b: d.b.filter(([f]) => {
     let cx = 0, cy = 0; for (let i = 0; i < f.length; i += 2) { cx += f[i]; cy += f[i + 1]; } cx /= f.length / 2; cy /= f.length / 2;
+    if (kf && Math.hypot(cx * T - kf.x, cy * T - kf.z) < KF_R + 5) return false;
     return !lmBox.some(([x0, x1, y0, y1]) => cx > x0 && cx < x1 && cy > y0 && cy < y1);
   }) };
   const extra = infill(d, g, si); plain.b = plain.b.concat(extra);
@@ -104,8 +108,8 @@ async function start() {
   const child = new Child(); scene.add(child.obj);
   const move = new Movement(g, bi, si);
   // start below the Church of the Immaculate Conception, where the canvas game starts
-  const OX = d.ox ?? 0;   // the old Panjim map's tile x, shifted since the map grew west to Dona Paula
-  let px = (92 + OX) * T, pz = 34 * T;
+  const OX = d.ox ?? 0, OY = d.oy ?? 0;   // the old Panjim map's tile x, shifted since the map grew west to Dona Paula
+  let px = (92 + OX) * T, pz = (34 + OY) * T;
   if (!move.free(px, pz)) for (let r = 2; r < 200 && !move.free(px, pz); r += 2) { px = (92 + OX) * T + r; }
 
   const net = new Network(d, g);
@@ -120,6 +124,7 @@ async function start() {
   const sand = beachSand(d);
   if (sand.length) d.places.push(['Miramar', sand.reduce((a, q) => a + q[0], 0) / sand.length / T, sand.reduce((a, q) => a + q[1], 0) / sand.length / T]);
   // Dona Paula lies past the map's southern edge: its land is walkable, and the pilots go there
+  shiftDP(((d.ox ?? 90) - 90) * T, (d.oy ?? 0) * T);   // Dona Paula's pieces were placed on the map before it grew to Aguada
   move.extra.push(donaPaulaLand);   // Dona Paula's jetty, out over the water
   const areaMgr = new AreaManager(areas(d), { d, g, houses: blds.list, segs: roads.segs, free: (x, z) => move.free(x, z), net, clock: () => day.min, points: () => st.points, figure: c => people.build(c).obj }, scene);
   areaMgr.onLoaded = (name, grp, inst, first) => {
@@ -149,10 +154,10 @@ async function start() {
   // "I love Goa" on the riverfront: the open bank west of the Old Secretariat, where the road leaves room by the water
   {
     let best: [number, number] | null = null, bd = 1e9;
-    for (let x = (60 + OX) * T; x <= (135 + OX) * T; x += 4) for (let z = 0; z <= 30 * T; z += 3) {
+    for (let x = (60 + OX) * T; x <= (135 + OX) * T; x += 4) for (let z = OY * T; z <= (30 + OY) * T; z += 3) {
       if (g.landAt(x, z) < 0.9 || si.at(x, z) || bi.solid(x, z, 5) || g.landAt(x, z - 12) > 0.5) continue;
       if ([[-6, 0], [6, 0], [0, 3]].some(([a, b]) => si.at(x + a, z + b) || g.landAt(x + a, z + b) < 0.9)) continue;
-      const dd = Math.hypot(x - (75.4 + OX) * T, z - 9.5 * T); if (dd < bd) { bd = dd; best = [x, z]; }
+      const dd = Math.hypot(x - (75.4 + OX) * T, z - (9.5 + OY) * T); if (dd < bd) { bd = dd; best = [x, z]; }
     }
     if (best) scene.add(buildLoveSign(best[0], g.heightAt(best[0], best[1]), best[1], 0));
   }

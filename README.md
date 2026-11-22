@@ -147,7 +147,7 @@ python tools/osm_import.py build NAME LAT LON --tile 12 --inline rakhondar.html
 
 `survey` lists temples, churches, ferry points and bus stops to choose a centre; `build` prints the tile grid so you can check it before playing, and `--inline` adds or replaces that village in the game's `VILLAGES`. Pin a landmark the tags don't mark with `--anchor kind=lat,lon,name` (for example a particular temple, or a ferry jetty). A ferry pinned beyond the map edge becomes "the ferry road" where the road leaves the map, as in Divar. Then add a chapter for it in `CHAPTERS`.
 
-Map data © OpenStreetMap contributors, available under the [Open Database License](https://opendatacommons.org/licenses/odbl/). The cached extracts (`data/*.osm.json`) and the derived grids (`data/*.map.json`) are under the ODbL too. Keep the credit line the game shows on real maps.
+Map data © OpenStreetMap contributors, available under the [Open Database License](https://opendatacommons.org/licenses/odbl/). The cached extracts (`data/*.osm.json`) the derived grids (`data/*.map.json`, `data/*.real.json`) and the 3D game's map (`web/public/data/panjim.json`) are under the ODbL too. Elevation: NASA SRTM (public domain), fetched via OpenTopoData. Keep the credit line the game shows on real maps.
 
 ## Billboards and sponsors
 

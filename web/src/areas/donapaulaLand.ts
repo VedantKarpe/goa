@@ -22,6 +22,17 @@ export const DP = {
   isletH: 9,
 };
 
+let shifted = false;
+/** Move every piece by (dx, dz) metres (once): the map has grown since they were placed. */
+export function shiftDP(dx: number, dz: number) {
+  if (shifted || (!dx && !dz)) return; shifted = true;
+  for (const v of Object.values(DP)) {
+    if (typeof v !== 'object') continue;
+    const o = v as Record<string, number>;
+    for (const k of Object.keys(o)) { if (k === 'x' || k === 'x0' || k === 'x1') o[k] += dx; if (k === 'z' || k === 'z0' || k === 'z1') o[k] += dz; }
+  }
+}
+
 /** The knoll's height at (x, z): a rounded hill falling to the water at its edge. */
 export function isletY(x: number, z: number): number {
   const V = DP.view, k = Math.min(1, Math.hypot(x - V.x, z - V.z) / V.r);

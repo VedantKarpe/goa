@@ -16,7 +16,7 @@ export function buildPromenade(d: PanjimData, g: Ground, bi: BuildingIndex, onSt
   const mat = (x: number, y: number, z: number, ang: number, s = one) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), q.setFromAxisAngle(up, ang).clone(), s);
 
   // 1. trace the drawn shoreline (where the land fraction is one half) along the city's Mandovi front, marching squares
-  const X0 = (55 + (d.ox ?? 0)) * T, X1 = (136 + (d.ox ?? 0)) * T, Z0 = 0, Z1 = 32 * T, S = 4, nx = Math.ceil((X1 - X0) / S), nz = Math.ceil((Z1 - Z0) / S);
+  const X0 = (55 + (d.ox ?? 0)) * T, X1 = (136 + (d.ox ?? 0)) * T, Z0 = (d.oy ?? 0) * T, Z1 = (32 + (d.oy ?? 0)) * T, S = 4, nx = Math.ceil((X1 - X0) / S), nz = Math.ceil((Z1 - Z0) / S);
   const v = new Float32Array((nx + 1) * (nz + 1));
   for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) v[j * (nx + 1) + i] = land(X0 + i * S, Z0 + j * S) - 0.5;
   const segs: [number, number, number, number][] = [];

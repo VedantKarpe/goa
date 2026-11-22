@@ -3,5 +3,6 @@
 import type { PanjimData } from '../world/data';
 
 export function miramarBox(d: PanjimData): { x0: number; x1: number; y0: number; y1: number } {
-  return d.ox ? { x0: 30, x1: 100, y0: 80, y1: 135 } : { x0: 0, x1: 30, y0: 0, y1: Math.min(d.H, 120) };
+  const dx = (d.ox ?? 90) - 90, dy = d.oy ?? 0;
+  return d.ox ? { x0: 30 + dx, x1: 100 + dx, y0: 80 + dy, y1: 135 + dy } : { x0: 0, x1: 30, y0: 0, y1: Math.min(d.H, 120) };
 }
