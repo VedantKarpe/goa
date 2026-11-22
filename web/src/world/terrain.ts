@@ -2,6 +2,7 @@
 // what the map says grows there) and one flat sheet for the river and the sea.
 import * as THREE from 'three';
 import { Ground, T, WATER_Y, type PanjimData } from './data';
+import { NEW_LOOK } from './look';
 
 const TILE_COL: Record<string, [number, number, number]> = {
   G: [0.22, 0.38, 0.15], L: [0.22, 0.38, 0.15], R: [0.22, 0.38, 0.15], P: [0.44, 0.56, 0.28],
@@ -45,6 +46,7 @@ export function buildTerrain(d: PanjimData, g: Ground, solidAt: (X: number, Z: n
   // the ground in squares of C tiles (300 m), one mesh each, so the camera skips the squares it cannot see
   const C = 15, group = new THREE.Group(); group.name = 'terrain';
   const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  if (NEW_LOOK) groundDetail(mat);
   for (let j0 = 0; j0 < H; j0 += C) for (let i0 = 0; i0 < W; i0 += C) {
   const cw = Math.min(C, W - i0), chh = Math.min(C, H - j0);
   const geo = new THREE.PlaneGeometry(cw * T, chh * T, cw * SUB, chh * SUB);
@@ -66,7 +68,11 @@ export function buildTerrain(d: PanjimData, g: Ground, solidAt: (X: number, Z: n
     let r0 = c[0] + (0.55 - c[0]) * lat, g0 = c[1] + (0.36 - c[1]) * lat, b0 = c[2] + (0.22 - c[2]) * lat;
     // a band of sand or mud along the water's edge
     const beach = (1 - smooth(0.58, 0.85, land)) * 0.85;
-    r0 += (SAND[0] - r0) * beach; g0 += (SAND[1] - g0) * beach; b0 += (SAND[2] - b0) * beach;
+    // the new look: sand only where the map has a beach; elsewhere the shore is dark laterite rock
+    let sandy = !NEW_LOOK;
+    if (!sandy) for (let dj = -2; dj <= 2 && !sandy; dj++) for (let di = -2; di <= 2; di++) { const ch = d.rows[Math.max(0, Math.min(H - 1, j + dj))][Math.max(0, Math.min(W - 1, i + di))]; if (ch === 'B' || ch === 'S') { sandy = true; break; } }
+    const SH = sandy ? SAND : [0.40, 0.29, 0.23];
+    r0 += (SH[0] - r0) * beach; g0 += (SH[1] - g0) * beach; b0 += (SH[2] - b0) * beach;
     col[v * 3] = r0 * hk * jit; col[v * 3 + 1] = g0 * hk * jit; col[v * 3 + 2] = b0 * hk * jit;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -82,10 +88,11 @@ export function buildTerrain(d: PanjimData, g: Ground, solidAt: (X: number, Z: n
 /** The water's clock (seconds), advanced by the game each frame. */
 export const waterTime = { value: 0 };
 
-export function buildWater(d: PanjimData): THREE.Mesh {
+export function buildWater(d: PanjimData, g?: Ground): THREE.Mesh {
   const pad = 2000;
   const geo = new THREE.PlaneGeometry(d.W * T + pad * 2, d.H * T + pad * 2);
   geo.rotateX(-Math.PI / 2); geo.translate((d.W * T) / 2, WATER_Y, (d.H * T) / 2);
+  if (NEW_LOOK && g) { const m = new THREE.Mesh(geo, newWater(d, g)); m.receiveShadow = true; m.name = 'water'; return m; }
   // moving waves: bands of lighter and darker water drifting with the current, and small sparkling crests
   const mat = new THREE.MeshLambertMaterial({ color: 0x2f7a9a });
   mat.onBeforeCompile = sh => {
@@ -109,4 +116,85 @@ float wn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   mesh.receiveShadow = true;
   mesh.name = 'water';
   return mesh;
+}
+
+/** The new look's ground: grass that changes shade across the land (lush, dry, yellowed), small tufts and dapples up
+ *  close, and bare laterite and dark rock where the ground is steep (cliffs, the Dona Paula headland). All in the shader. */
+function groundDetail(mat: THREE.MeshLambertMaterial) {
+  mat.onBeforeCompile = sh => {
+    sh.vertexShader = 'varying vec3 vGW; varying vec3 vGN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vGW = (modelMatrix * vec4(position, 1.0)).xyz; vGN = normalize(mat3(modelMatrix) * normal);');
+    sh.fragmentShader = `varying vec3 vGW; varying vec3 vGN;
+float gh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float gn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(gh(i), gh(i + vec2(1, 0)), f.x), mix(gh(i + vec2(0, 1)), gh(i + vec2(1, 1)), f.x), f.y); }
+float gfbm(vec2 p) { return gn(p) * 0.5 + gn(p * 2.03) * 0.25 + gn(p * 4.01) * 0.125 + gn(p * 8.0) * 0.0625; }
+` + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      vec3 base = diffuseColor.rgb;
+      float green = clamp((base.g - max(base.r, base.b)) * 6.0, 0.0, 1.0);          // how grassy this ground is (not sand, not road)
+      float big = gfbm(vGW.xz * 0.012), mid = gfbm(vGW.xz * 0.06), fine = gn(vGW.xz * 0.9);
+      vec3 lush = vec3(0.20, 0.40, 0.13), dry = vec3(0.47, 0.50, 0.22), yellowed = vec3(0.58, 0.52, 0.26);
+      vec3 grass = mix(lush, dry, smoothstep(0.35, 0.75, big));
+      grass = mix(grass, yellowed, smoothstep(0.62, 0.85, mid) * 0.5);
+      grass *= 0.86 + 0.24 * fine;                                                    // tufts and dapples up close
+      vec3 col = mix(base * (0.92 + 0.16 * fine), grass, green * 0.85);
+      // red laterite earth where the grass wears thin, and rock on steep ground
+      float earth = smoothstep(0.68, 0.82, gfbm(vGW.xz * 0.03 + 7.0)) * green;
+      col = mix(col, vec3(0.55, 0.28, 0.17) * (0.85 + 0.3 * mid), earth * 0.7);
+      float steep = smoothstep(0.86, 0.62, vGN.y);
+      vec3 rock = mix(vec3(0.42, 0.30, 0.24), vec3(0.30, 0.27, 0.26), gn(vGW.xz * 0.25 + vGW.y * 0.3)) * (0.8 + 0.4 * fine);
+      col = mix(col, rock, steep);
+      diffuseColor.rgb = col;`);
+  };
+  mat.customProgramCacheKey = () => 'ground-new';
+}
+
+/** The new look's sea and river: turquoise over the shallows by the shore, deep blue further out, a band of foam where
+ *  the waves meet the land, small waves catching the sun, and the far water paling into the haze. */
+function newWater(d: PanjimData, g: Ground): THREE.MeshPhongMaterial {
+  // how near the land is, from each tile (blurred out a few tiles): drives the shallows and the foam
+  const { W, H } = g; let f = new Float32Array(W * H);
+  for (let i = 0; i < W * H; i++) f[i] = g.wet[i] ? 0 : 1;
+  for (let pass = 0; pass < 4; pass++) {
+    const o = new Float32Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      let sum = 0, n = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; sum += f[yy * W + xx]; n++; }
+      o[y * W + x] = Math.max(f[y * W + x] * (g.wet[y * W + x] ? 0 : 1), sum / n);
+    }
+    f = o;
+  }
+  const data = new Uint8Array(W * H); for (let i = 0; i < W * H; i++) data[i] = Math.round(Math.min(1, f[i]) * 255);
+  const tex = new THREE.DataTexture(data, W, H, THREE.RedFormat); tex.magFilter = tex.minFilter = THREE.LinearFilter; tex.needsUpdate = true;
+  const mat = new THREE.MeshPhongMaterial({ color: 0x1f6a86, specular: 0x4a5c66, shininess: 140 });
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uTime = waterTime; sh.uniforms.uLand = { value: tex }; sh.uniforms.uSize = { value: new THREE.Vector2(d.W * T, d.H * T) };
+    sh.vertexShader = 'varying vec3 vW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vW = (modelMatrix * vec4(position, 1.0)).xyz;');
+    sh.fragmentShader = `uniform float uTime; uniform sampler2D uLand; uniform vec2 uSize;
+varying vec3 vW;
+float wh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float wn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(wh(i), wh(i + vec2(1, 0)), f.x), mix(wh(i + vec2(0, 1)), wh(i + vec2(1, 1)), f.x), f.y); }
+float waves(vec2 p) { return wn(p * 0.09 + vec2(uTime * 0.05, uTime * 0.02)) * 0.55 + wn(p * 0.23 + vec2(-uTime * 0.08, uTime * 0.06)) * 0.3 + wn(p * 0.7 + vec2(uTime * 0.2, -uTime * 0.1)) * 0.15; }
+` + sh.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>
+      vec2 uv = vW.xz / uSize;
+      float near = (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) ? 0.0 : texture2D(uLand, uv).r;
+      vec3 deep = vec3(0.07, 0.30, 0.42), mid = vec3(0.10, 0.45, 0.52), shallow = vec3(0.28, 0.66, 0.62);
+      vec3 col = mix(deep, mid, smoothstep(0.0, 0.25, near));
+      col = mix(col, shallow, smoothstep(0.25, 0.55, near));
+      float wv = waves(vW.xz);
+      col *= 0.9 + 0.2 * wv;
+      // foam: broken white lines rolling in along the shore
+      float band = smoothstep(0.52, 0.64, near) * (1.0 - smoothstep(0.8, 0.95, near));
+      float roll = sin(near * 40.0 - uTime * 1.6 + wn(vW.xz * 0.15) * 6.0) * 0.5 + 0.5;
+      float foam = band * smoothstep(0.55, 0.95, roll * (0.6 + 0.6 * wn(vW.xz * 0.4 + uTime * 0.3)));
+      col = mix(col, vec3(0.90, 0.95, 0.94), clamp(foam * 0.75 + smoothstep(0.68, 0.8, near) * 0.5, 0.0, 0.85));
+      diffuseColor.rgb = col;`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      { float e = 0.6; float h0 = waves(vW.xz), hx = waves(vW.xz + vec2(e, 0.0)), hz = waves(vW.xz + vec2(0.0, e));
+        vec3 wn3 = normalize(vec3(-(hx - h0) * 1.6, 1.0, -(hz - h0) * 1.6));
+        normal = normalize((viewMatrix * vec4(wn3, 0.0)).xyz); }`);
+  };
+  mat.customProgramCacheKey = () => 'water-new';
+  return mat;
 }

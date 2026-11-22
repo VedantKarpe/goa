@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Ground, T, pts, inPoly, type PanjimData } from './data';
 import { BAY, facadeTexture, facadeMaterial } from './facade';
+import { NEW_LOOK } from './look';
+const LIME = new THREE.Color(0xf2e8d2);
 
 /** How lit the windows are (0 by day, 1 at night); the clock sets it. */
 export const windowsLit = { value: 0 };
@@ -158,7 +160,73 @@ export function cullChunks(group: THREE.Object3D, x: number, z: number, r: numbe
   for (const c of group.children) if (c.userData.cx !== undefined) c.visible = Math.hypot(c.userData.cx - x, c.userData.cz - z) < r + CHUNK * 0.71;
 }
 
-export function buildBuildings(d: PanjimData, g: Ground): { group: THREE.Group; list: Building[] } {
+
+/** The new look's Goan details on a plain building. Houses: white corner pilasters, a white cornice under the eaves,
+ *  a darker plinth, and on the side facing the street a balcão: the raised front porch on white pillars with built-in
+ *  seats and its own little tiled roof, steps down to the road (a balcony above on two-storey houses). Blocks of flats:
+ *  a balcony with a railing at every bay of every floor on the long sides, a parapet round the flat roof, and the black
+ *  water tank on top. Everything is pushed into `out` (one merged mesh per map square). */
+function goanDetails(out: THREE.BufferGeometry[], p: [number, number][], base: number, h: number, storeys: number, flats: boolean,
+  front: number, roof: THREE.Color, seed: number) {
+  const n = p.length, cx = p.reduce((a, q) => a + q[0], 0) / n, cz = p.reduce((a, q) => a + q[1], 0) / n;
+  const WHITE = 0xf6f2e8, ROOF = roof.getHex();
+  const piece = (l: number, hh: number, w: number, x: number, y: number, z: number, ang: number, col: number) =>
+    out.push(solid(new THREE.BoxGeometry(l, hh, w).rotateY(ang).translate(x, y, z), col));
+  const edge = (i: number) => {
+    const [ax, az] = p[i], [bx, bz] = p[(i + 1) % n], L = Math.hypot(bx - ax, bz - az), dx = (bx - ax) / (L || 1), dz = (bz - az) / (L || 1);
+    let nx = -dz, nz = dx; const mx = (ax + bx) / 2, mz = (az + bz) / 2;
+    if ((mx - cx) * nx + (mz - cz) * nz < 0) { nx = -nx; nz = -nz; }      // the normal pointing out of the building
+    return { ax, az, bx, bz, L, dx, dz, nx, nz, mx, mz, ang: -Math.atan2(dz, dx) };
+  };
+  if (!flats) {
+    for (const [x, z] of p) piece(0.55, h, 0.55, x + (x - cx) * 0.01, base + h / 2, z + (z - cz) * 0.01, 0, WHITE);      // pilasters
+    for (let i = 0; i < n; i++) {
+      const e = edge(i);
+      piece(e.L + 0.5, 0.38, 0.45, e.mx + e.nx * 0.18, base + h - 0.22, e.mz + e.nz * 0.18, e.ang, WHITE);              // cornice
+      piece(e.L + 0.2, 0.7, 0.3, e.mx + e.nx * 0.1, base + 0.35, e.mz + e.nz * 0.1, e.ang, 0x8c7a68);                  // plinth
+    }
+    const e = edge(front);
+    if (e.L >= 6) {
+      const W = Math.min(e.L * 0.62, 9), D = 2.6, fx = e.mx + e.nx * (D / 2 + 0.1), fz = e.mz + e.nz * (D / 2 + 0.1), fl = base + 0.6;
+      piece(W, 0.6, D, fx, base + 0.3, fz, e.ang, 0xa4573c);                                                         // the porch floor, laterite red
+      for (let k = 0; k <= 3; k++) {                                                                                  // its white pillars
+        const t = -W / 2 + 0.3 + k * (W - 0.6) / 3, px = fx + e.dx * t + e.nx * (D / 2 - 0.3), pz = fz + e.dz * t + e.nz * (D / 2 - 0.3);
+        piece(0.42, 2.7, 0.42, px, fl + 1.35, pz, e.ang, WHITE);
+      }
+      for (const sd of [-1, 1]) piece(0.4, 0.75, D, fx + e.dx * sd * (W / 2 - 0.2), fl + 0.37, fz + e.dz * sd * (W / 2 - 0.2), e.ang, WHITE);   // the seats
+      const r = new THREE.BoxGeometry(W + 0.8, 0.22, D + 0.9).rotateX(0.22).rotateY(e.ang).translate(fx + e.nx * 0.3, fl + 2.95, fz + e.nz * 0.3);   // its tiled roof
+      out.push(solid(r, ROOF));
+      for (let k = 0; k < 2; k++) piece(1.8, 0.3, 0.7, fx + e.nx * (D / 2 + 0.35 + k * 0.7), base + 0.45 - k * 0.3, fz + e.nz * (D / 2 + 0.35 + k * 0.7), e.ang, 0xc8bfb0);   // steps
+      if (storeys >= 2) {                                                                                              // a balcony above
+        const by = base + STOREY + 0.1;
+        piece(W * 0.7, 0.25, 1.4, e.mx + e.nx * 0.75, by, e.mz + e.nz * 0.75, e.ang, WHITE);
+        const bx0 = e.mx + e.nx * 1.4, bz0 = e.mz + e.nz * 1.4;
+        piece(W * 0.7, 0.1, 0.12, bx0, by + 1.0, bz0, e.ang, WHITE);
+        for (let t = -W * 0.35; t <= W * 0.35; t += 0.3) piece(0.06, 0.9, 0.06, bx0 + e.dx * t, by + 0.55, bz0 + e.dz * t, e.ang, 0x2c2a28);   // wrought-iron bars
+      }
+    }
+  } else {
+    // flats: balconies on the two longest sides, every bay, every floor above the ground
+    const sides = [...Array(n).keys()].map(edge).sort((a, b) => b.L - a.L).slice(0, 2);
+    for (const e of sides) for (let f = 1; f < storeys; f++) for (let t = BAY / 2; t < e.L - BAY / 2; t += BAY) {
+      if (((seed + f * 7 + Math.round(t)) % 5) === 0) continue;                                                        // not every bay has one
+      const x = e.ax + e.dx * t + e.nx * 0.6, z = e.az + e.dz * t + e.nz * 0.6, y = base + f * STOREY;
+      piece(3.0, 0.22, 1.2, x, y, z, e.ang, 0xe8e4dc);
+      const rail = (seed % 3) ? 0x4a4a4c : 0xf0ece4, rx = x + e.nx * 0.56, rz = z + e.nz * 0.56;
+      piece(3.0, 0.08, 0.1, rx, y + 1.05, rz, e.ang, rail);                                                            // the hand rail
+      for (let b = -1.4; b <= 1.41; b += 0.35) piece(0.05, 0.95, 0.05, rx + e.dx * b, y + 0.58, rz + e.dz * b, e.ang, rail);   // its bars
+    }
+    for (let i = 0; i < n; i++) { const e = edge(i); piece(e.L + 0.3, 1.0, 0.3, e.mx - e.nx * 0.1, base + h + 0.5, e.mz - e.nz * 0.1, e.ang, 0xdedad0); }   // parapet
+    out.push(solid(new THREE.CylinderGeometry(0.9, 0.9, 1.6, 10).translate(cx + 2, base + h + 0.8, cz + 1), 0x1e1e20));   // the water tank
+  }
+}
+
+export function buildBuildings(d: PanjimData, g: Ground, segs: { ax: number; az: number; bx: number; bz: number }[] = []): { group: THREE.Group; list: Building[] } {
+  // which side of a house faces the street: the edge whose middle is nearest a street (a coarse grid over the streets)
+  const SG = new Map<number, { ax: number; az: number; bx: number; bz: number }[]>();
+  for (const sg of segs) for (let t = 0; t <= 1; t += 0.25) { const x = sg.ax + (sg.bx - sg.ax) * t, z = sg.az + (sg.bz - sg.az) * t, k = Math.floor(x / 40) * 4096 + Math.floor(z / 40); let a = SG.get(k); if (!a) SG.set(k, a = []); if (!a.includes(sg)) a.push(sg); }
+  const streetDist = (x: number, z: number) => { let best = 1e9; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (const sg of SG.get((Math.floor(x / 40) + i) * 4096 + Math.floor(z / 40) + j) ?? []) {
+    const vx = sg.bx - sg.ax, vz = sg.bz - sg.az, L2 = vx * vx + vz * vz || 1, t = Math.max(0, Math.min(1, ((x - sg.ax) * vx + (z - sg.az) * vz) / L2)); best = Math.min(best, Math.hypot(sg.ax + vx * t - x, sg.az + vz * t - z)); } return best; };
   const named = d.named ?? [];
   // buildings are merged by map squares (CHUNK metres across), one mesh each: squares off-screen are skipped by the
   // camera's frustum test, and far ones are hidden (cullChunks), so a big map costs little more than a small one
@@ -192,8 +260,9 @@ export function buildBuildings(d: PanjimData, g: Ground): { group: THREE.Group; 
     const wall = ov?.color !== undefined ? new THREE.Color(ov.color) : style === 'pub' ? new THREE.Color(PUB_COLS[idx % PUB_COLS.length]) : style === 'modern' ? new THREE.Color(MODERN_COLS[idx % MODERN_COLS.length])
       : kind === 1 || style === 'church' ? white : kind === 2 || style === 'temple' ? ochre : quarter ? new THREE.Color(QUARTER_COLS[(idx * 5 + p.length) % QUARTER_COLS.length]) : new THREE.Color(PALETTE[(idx * 7 + p.length) % PALETTE.length]);
     // tiled hip roofs on houses, the old public buildings and the churches; flat on modern blocks and temples
+    if (NEW_LOOK) wall.lerp(LIME, kind || style ? 0.1 : 0.24);   // the new look: lime-washed, sun-faded Goan colours rather than toy primaries
     const tiled = quarter || style === 'pub' || style === 'church' || (!kind && !style && area < 1400);
-    colorGeo(geo, wall, tiled ? roofTile : style === 'modern' ? new THREE.Color(0x9a9c9e) : kind === 1 ? white : roofFlat);
+    colorGeo(geo, wall, tiled ? (NEW_LOOK ? roofTile.clone().offsetHSL(((idx * 37) % 11 - 5) * 0.004, 0, ((idx * 53) % 9 - 4) * 0.02) : roofTile) : style === 'modern' ? new THREE.Color(0x9a9c9e) : kind === 1 ? white : roofFlat);
     geos.push(geo);
     if (tiled) {
       // a hip roof over simple shapes; a band of tiles all round the eaves over L, U and courtyard shapes
@@ -203,6 +272,11 @@ export function buildBuildings(d: PanjimData, g: Ground): { group: THREE.Group; 
       geos.push(r);
     }
     const cx = p.reduce((a, q) => a + q[0], 0) / p.length, cz = p.reduce((a, q) => a + q[1], 0) / p.length;
+    if (NEW_LOOK && !kind && style !== 'church' && style !== 'temple' && convex(p) && p.length <= 8) {
+      const flats = style === 'modern' || storeys >= 3 && area > 250;
+      let front = 0, fd = 1e9; for (let i = 0; i < p.length; i++) { const a = p[i], b2 = p[(i + 1) % p.length]; const dd = streetDist((a[0] + b2[0]) / 2, (a[1] + b2[1]) / 2); if (dd < fd) { fd = dd; front = i; } }
+      if (flats || area < 700) goanDetails(geos, p, base, h, storeys, flats, front, tiled ? roofTile : roofFlat, idx);
+    }
     if (style === 'church') {
       // as St. Inez and the Panjim chapels: a white baroque front at the end of the nave, a scrolled gable with a cross
       // in the middle and a small bell tower either side
@@ -263,8 +337,8 @@ export function buildBuildings(d: PanjimData, g: Ground): { group: THREE.Group; 
     for (const gg of bucket) gg.dispose();
     const mesh = new THREE.Mesh(merged, mat);
     mesh.castShadow = true; mesh.receiveShadow = true;
-    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(merged, 35), ink);
-    const chunk = new THREE.Group(); chunk.add(mesh, edges);
+    const chunk = new THREE.Group(); chunk.add(mesh);
+    if (!NEW_LOOK) chunk.add(new THREE.LineSegments(new THREE.EdgesGeometry(merged, 35), ink));
     chunk.userData.cx = (Math.floor(k / 4096) + 0.5) * CHUNK; chunk.userData.cz = ((k % 4096 + 4096) % 4096 + 0.5) * CHUNK;
     group.add(chunk);
   }

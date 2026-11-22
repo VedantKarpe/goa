@@ -23,7 +23,10 @@ import { loadModels, rawModel } from './world/models';
 import { Boats } from './entities/boats';
 import { Pumps } from './entities/pumps';
 import { Bikes } from './entities/bikes';
-import { toonify } from './world/toon';
+import { toonify as toonifyOld } from './world/toon';
+import { Look, NEW_LOOK } from './world/look';
+// the cartoon look (cel bands, ink outlines) only in the old look
+const toonify: typeof toonifyOld = (...a) => { if (!NEW_LOOK) toonifyOld(...a); };
 import { infill } from './world/infill';
 import { Places } from './ui/places';
 import { buildStreetLife } from './world/streetlife';
@@ -32,7 +35,7 @@ import { Blackout } from './systems/blackout';
 import { buildPromenade } from './world/promenade';
 import { Cows } from './entities/cows';
 import { Rentals } from './entities/rentals';
-import { donaPaulaLand, fitJetty } from './areas/donapaulaLand';
+import { donaPaulaLand } from './areas/donapaulaLand';
 import { buildShops, buildLoveSign } from './world/shops';
 import { Campaign } from './systems/campaign';
 import { AreaManager } from './areas/manager';
@@ -69,7 +72,7 @@ async function start() {
     return !lmBox.some(([x0, x1, y0, y1]) => cx > x0 && cx < x1 && cy > y0 && cy < y1);
   }) };
   const extra = infill(d, g, si); plain.b = plain.b.concat(extra);
-  const blds = buildBuildings(plain, g); scene.add(blds.group);
+  const blds = buildBuildings(plain, g, roads.segs); scene.add(blds.group);
   // the landmarks' own outlines stay solid, though their plain blocks are not drawn
   const kept = new Set(plain.b.map(b => b[0]));
   for (const [f] of d.b) {
@@ -83,7 +86,7 @@ async function start() {
   // the same drawn shoreline
   const solidGround = (X: number, Z: number) => { const s = si.at(X, Z); return (!!s && s.deck === null) || bi.solid(X, Z, 9); };   // a bank 9 m round every building, so none stands in the water
   const drawnLand = (X: number, Z: number) => (solidGround(X, Z) ? 1 : g.landAt(X, Z));
-  const terrain = buildTerrain(d, g, solidGround); scene.add(terrain, buildWater(d));
+  const terrain = buildTerrain(d, g, solidGround); scene.add(terrain, buildWater(d, g));
   const atalGlow = new THREE.MeshBasicMaterial({ color: 0xd8d6d0 });
   for (const l of d.lm) for (const [x, y] of l.at) {
     const m = rawModel(l.name); if (!m) continue;
@@ -117,7 +120,7 @@ async function start() {
   const sand = beachSand(d);
   if (sand.length) d.places.push(['Miramar', sand.reduce((a, q) => a + q[0], 0) / sand.length / T, sand.reduce((a, q) => a + q[1], 0) / sand.length / T]);
   // Dona Paula lies past the map's southern edge: its land is walkable, and the pilots go there
-  fitJetty((x, z) => g.isWet(x, z)); move.extra.push(donaPaulaLand);   // Dona Paula's jetty, out over the water
+  move.extra.push(donaPaulaLand);   // Dona Paula's jetty, out over the water
   const areaMgr = new AreaManager(areas(d), { d, g, houses: blds.list, segs: roads.segs, free: (x, z) => move.free(x, z), net, clock: () => day.min, points: () => st.points, figure: c => people.build(c).obj }, scene);
   areaMgr.onLoaded = (name, grp, inst, first) => {
     if (name === 'Fontainhas') toonify(grp, [], () => true); else toonify(grp, [grp], () => false);   // the cartoon look, ink outlines as before
@@ -220,7 +223,8 @@ async function start() {
   btn('bTalk', talk); btn('bLift', lift); btn('bBan', banish); btn('bCall', call);
 
   const places = d.places.map(([n, x, y]) => ({ n, X: x * T, Z: y * T }));
-  const resize = () => { renderer.setSize(app.clientWidth, app.clientHeight, false); };
+  const look = new Look(renderer, scene, rig.camera);
+  const resize = () => { renderer.setSize(app.clientWidth, app.clientHeight, false); look.setSize(app.clientWidth, app.clientHeight, renderer.getPixelRatio()); };
   addEventListener('resize', resize); resize();
   document.getElementById('loading')!.remove();
 
@@ -450,15 +454,16 @@ async function start() {
     // the sun crosses from east (morning) to west (evening), low early and late
     const sa = Math.max(0.2, Math.min(Math.PI - 0.2, (day.min - 360) / 720 * Math.PI)), sh = Math.max(0.6, Math.sin(sa))   // never so low that poles and palms cast long stripes across the town;
     sun.position.set(px + Math.cos(sa) * 260, py + sh * 260, pz + 80); sun.target.position.set(px, py, pz);
+    look.setSun(new THREE.Vector3(Math.cos(sa), Math.sin(sa) * 0.9 + (day.dark > 0.5 ? -0.4 : 0), 0.3).normalize(), day.dark);   // the sky follows the sun (the new look)
     // the sun itself, low over the sea in the evening: yellow, then deep orange as it goes down
     const eve = Math.max(0, Math.min(1, (day.min - 990) / 130));
-    sunDisc.visible = day.min > 900 && day.min < 1150;
+    sunDisc.visible = !NEW_LOOK && day.min > 900 && day.min < 1150;   // the new look's sky draws its own sun
     if (sunDisc.visible) {
       const cam = rig.camera.position, dirS = new THREE.Vector3(Math.cos(sa), 0.012 + 0.05 * (1 - eve), 0.12).normalize();
       sunDisc.position.copy(cam).addScaledVector(dirS, 850); sunDisc.scale.setScalar(70 + eve * 40);
       (sunDisc.material as THREE.SpriteMaterial).color.setRGB(1, 0.85 - eve * 0.45, 0.45 - eve * 0.35);
     }
-    const camD = rig.camera.position.distanceTo(child.obj.position); const fog = scene.fog as THREE.Fog; fog.near = Math.max(260, camD * 1.5); fog.far = Math.max(900, camD * 4.5);
+    const camD = rig.camera.position.distanceTo(child.obj.position); const fog = scene.fog as THREE.Fog; fog.near = Math.max(260, camD * 1.5) * (NEW_LOOK ? 1.6 : 1); fog.far = Math.max(900, camD * 4.5) * (NEW_LOOK ? 1.4 : 1);
     if (campaign.active && campaign.cur?.fog && night) { fog.near = Math.max(20, camD * 0.6); fog.far = Math.max(150, camD * 2); }   // the bhoot's fog   // zoomed in close, the haze still starts far off
     let near = '', nd = 1e9;
     for (const p of places) { const dd = Math.hypot(p.X - px, p.Z - pz); if (dd < nd) { nd = dd; near = p.n; } }
@@ -480,7 +485,7 @@ async function start() {
       for (const m of treeGroup.children) { const c = m.userData.cell as [number, number] | undefined; if (c) m.visible = Math.hypot(c[0] - px, c[1] - pz) < far + 170; }
       for (const gr of smallStuff) for (const o of gr.children) o.visible = Math.hypot(o.position.x - px, o.position.z - pz) < near || o.position.lengthSq() === 0;
     }
-    renderer.render(scene, rig.camera);
+    look.render();
     const t = campaign.active ? campaign.piece : blackout.target ?? quests.target;
     const hint = t && (campaign.active || blackout.active || quests.cur?.kind !== 'collect') ? `${Math.round(Math.hypot(t.x - px, t.z - pz) / 10) * 10} m` : '';
     hud.update(dt, renderer, { courage: st.courage, oil: st.oil, points: st.points, time: day.label + (night ? ' · night' : ''), placeName: nd < 400 ? near : '', objective: campaign.active ? campaign.objective : blackout.active ? "Torch dead: follow the only lit street to Uncle's battery shop" : quests.objective, riding: !!traffic.riding, hint });

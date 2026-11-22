@@ -3,12 +3,13 @@
 import { T, type PanjimData } from '../world/data';
 import type { AreaEntry } from './types';
 import { DP } from './donapaulaLand';
+import { miramarBox } from './miramarBox';
 
 /** Miramar's sand (world tile centres): the base game uses it for the place pin and the beach cows. */
 export function beachSand(d: PanjimData): [number, number][] {
   const out: [number, number][] = [];
-  const ox = d.ox ?? 0;   // Miramar's beach: the sand on the old map's west shore, north of Caranzalem
-  for (let y = 0; y < Math.min(d.H, 120); y++) for (let x = ox; x < ox + 30; x++) { const c = d.rows[y][x]; if (c === 'S' || c === 'B') out.push([(x + 0.5) * T, (y + 0.5) * T]); }
+  const m = miramarBox(d);   // Miramar's beach
+  for (let y = m.y0; y < m.y1; y++) for (let x = m.x0; x < m.x1; x++) { const c = d.rows[y][x]; if (c === 'S' || c === 'B') out.push([(x + 0.5) * T, (y + 0.5) * T]); }
   return out;
 }
 

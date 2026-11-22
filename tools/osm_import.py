@@ -202,6 +202,56 @@ def build(name, lat, lon, tile, inline, pins=()):
             fx = max(0, min(enx - 1.001, (lo - w0) / (e0 - w0) * (enx - 1))); fy = max(0, min(eny - 1.001, (la - s0) / (n0 - s0) * (eny - 1)))
             i, j = int(fx), int(fy); tx, ty = fx - i, fy - j; v = lambda a, b2: ev[(j + b2) * enx + i + a]
             return (v(0, 0) * (1 - tx) + v(1, 0) * tx) * (1 - ty) + (v(0, 1) * (1 - tx) + v(1, 1) * tx) * ty > 1.5
+    # a big region: join the coastline into chains; a chain that enters and leaves the map is closed round a big box on
+    # the side where the buildings are, giving the exact land outline; every cell outside it is sea (no flood, no guess)
+    land_rings = []
+    if ep.exists():
+        chains = [list(c) for c in coast if len(c) > 1]
+        joined = True
+        while joined:
+            joined = False
+            for i in range(len(chains)):
+                for j in range(len(chains)):
+                    if i != j and chains[i] and chains[j] and math.hypot(chains[i][-1][0] - chains[j][0][0], chains[i][-1][1] - chains[j][0][1]) < 0.05:
+                        chains[i] += chains[j][1:]; chains[j] = []; joined = True
+            chains = [c for c in chains if c]
+        out_ = lambda q: not (0 <= q[0] < W and 0 <= q[1] < H)
+        M_ = 2000
+        corners = [(-M_, -M_), (W + M_, -M_), (W + M_, H + M_), (-M_, H + M_)]   # clockwise on screen (y down)
+        def proj(q):
+            x, y = q; d = [(abs(x + M_), 3, (-M_, y)), (abs(y + M_), 0, (x, -M_)), (abs(W + M_ - x), 1, (W + M_, y)), (abs(H + M_ - y), 2, (x, H + M_))]
+            d.sort(); return d[0][1], d[0][2]      # side index: 0 top, 1 right, 2 bottom, 3 left (clockwise), point on it
+        blds = [centre(e) for e in els if tagged(e).get('building') and e['type'] == 'way']
+        blds = [xy(la, lo) for la, lo in blds if la]
+        def inside(rings_, x, y):
+            c = False
+            for r in rings_:
+                for (x1, y1), (x2, y2) in zip(r, r[1:] + r[:1]):
+                    if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1): c = not c
+            return c
+        for c in chains:
+            if c[0] == c[-1]:
+                land_rings.append(c); continue     # an island
+            if not (out_(c[0]) and out_(c[-1])): continue
+            se, pe = proj(c[-1]); ss, ps = proj(c[0])
+            best = None
+            for step in (1, -1):                   # walk the box clockwise or anticlockwise from the end back to the start
+                ring = c + [pe]; k = se
+                for _ in range(5):
+                    if k == ss and len(ring) > len(c) + 1 or k == ss and step == 1 and _ > 0: break
+                    if k == ss and _ == 0 and (step == 1) == (True): pass
+                    if step == 1: ring.append(corners[(k + 1) % 4]); k = (k + 1) % 4
+                    else: ring.append(corners[k]); k = (k - 1) % 4
+                    if k == ss: break
+                ring.append(ps)
+                n = sum(1 for b in blds[::7] if inside([ring], *b))
+                if best is None or n > best[0]: best = (n, ring)
+            land_rings.append(best[1])
+    if land_rings:
+        stack = []
+        for ty in range(H):
+            for tx in range(W):
+                if grid[ty][tx] in 'GPFMC' and not inside(land_rings, tx + 0.5, ty + 0.5): grid[ty][tx] = 'S'   # beaches stay (OSM often draws them seaward of the coastline)
     while stack:
         x, y = stack.pop()
         if not (0 <= x < W and 0 <= y < H) or grid[y][x] not in 'GPFMB' or high(x, y):
@@ -209,9 +259,11 @@ def build(name, lat, lon, tile, inline, pins=()):
         grid[y][x] = 'S'
         stack += [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
     # a strip of sand along the sea, where the coastline ran
-    BAND = 1 if ep.exists() else 3   # a big region (with heights): a thin strip; the old villages keep their wide one
+    BAND = 0 if ep.exists() else 3   # a big region: sand only on mapped beaches (rocky shores stay rock); the old villages keep their strip
     for y in range(H):
         for x in range(W):
+            if grid[y][x] == 'C' and BAND == 0:
+                grid[y][x] = 'G'; continue      # the coastline itself is just the land's edge
             if grid[y][x] == 'C' or (grid[y][x] in 'GF' and any(0 <= x + dx < W and 0 <= y + dy < H and grid[y + dy][x + dx] == 'S'
                                                                 for dx in range(-BAND, BAND + 1) for dy in range(-BAND, BAND + 1))):
                 grid[y][x] = 'B'

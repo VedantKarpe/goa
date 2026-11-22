@@ -7,6 +7,7 @@ import { T, WATER_Y, type PanjimData, type Ground } from '../world/data';
 import type { AreaContext, AreaInstance } from './types';
 import type { Cast } from '../entities/cast';
 import { buildCar } from '../entities/cars';
+import { miramarBox } from './miramarBox';
 
 interface Walker { obj: THREE.Group; a: [number, number]; b: [number, number]; t: number; sp: number }
 
@@ -27,7 +28,8 @@ export class Miramar {
     // the beach: the sand tiles on the city's west shore (Miramar), not any sand elsewhere
     const shore: [number, number, number, number][] = [];   // world x, z, and the direction to the water
     let sx = 0, sz = 0;
-    for (let y = 0; y < Math.min(d.H, 120); y++) for (let x = (d.ox ?? 0); x < (d.ox ?? 0) + 30; x++) {
+    const mb = miramarBox(d);
+    for (let y = mb.y0; y < mb.y1; y++) for (let x = mb.x0; x < mb.x1; x++) {
       if (!sandy(at(x, y))) continue;
       const X = (x + 0.5) * T, Z = (y + 0.5) * T; this.sand.push([X, Z]); sx += X; sz += Z;
       for (const [dx, dy] of [[-1, 0], [0, -1], [1, 0], [0, 1]]) if (at(x + dx, y + dy) === 'W') shore.push([X + dx * T * 0.5, Z + dy * T * 0.5, dx, dy]);

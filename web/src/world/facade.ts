@@ -6,9 +6,10 @@ import * as THREE from 'three';
 export const BAY = 4.2;      // metres across one bay, and one storey high
 
 export function facadeTexture(): THREE.CanvasTexture {
-  const S = 128, c = document.createElement('canvas'); c.width = S; c.height = S;
+  const S = 256, c = document.createElement('canvas'); c.width = S; c.height = S;
   const g = c.getContext('2d')!;
   g.clearRect(0, 0, S, S);
+  g.scale(S / 128, S / 128); const S0 = S; { const S = 128; void S0;
   // a little weathering: faint darker streaks on the plaster (alpha only, so it tints any colour)
   for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(60,40,20,${0.03 + Math.random() * 0.04})`; g.fillRect(Math.random() * S, 0, 1 + Math.random() * 3, S * (0.3 + Math.random() * 0.7)); }
   g.clearRect(0, 0, 5, S);   // a clean strip for roofs to sample
@@ -24,8 +25,9 @@ export function facadeTexture(): THREE.CanvasTexture {
   g.fillStyle = 'rgba(0,0,0,.3)'; for (let y = wy + 4; y < wy + wh; y += 6) g.fillRect(wx + 2, y, ww / 2 - 5, 1.5);
   g.fillStyle = '#6e3a28'; g.fillRect(wx + ww / 2 + 1, wy + wh * 0.55, ww / 2 - 1, wh * 0.45);   // a half door below
   g.fillStyle = '#f7f4ec'; g.fillRect(wx - 10, wy + wh - 2, ww + 20, 4);                  // threshold / sill
-  // a grey plinth at the foot of the wall
-  g.fillStyle = 'rgba(70,70,70,.0)';
+  // a darker plinth at the foot of the wall
+  g.fillStyle = 'rgba(60,50,40,.16)'; g.fillRect(0, S - 6, S, 6);
+  }
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;

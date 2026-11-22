@@ -19,7 +19,7 @@ out = DATA / f'{name}.osm.json'
 if not out.exists():
     d = overpass(q); out.write_text(json.dumps(d), encoding='utf-8', newline=chr(10)); print(f'{len(d["elements"])} OSM elements -> {out.name}')
 
-step = 0.0013
+step = float(__import__('os').environ.get('ELEV_STEP', '0.0013'))
 nx, ny = int(round((e - w) / step)) + 1, int(round((n - s) / step)) + 1
 pts = [(s + (n - s) * j / (ny - 1), w + (e - w) * i / (nx - 1)) for j in range(ny) for i in range(nx)]
 elev = []

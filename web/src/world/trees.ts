@@ -5,6 +5,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { Ground, T, type PanjimData } from './data';
 import type { BuildingIndex } from './buildings';
 import type { StreetIndex } from './roads';
+import { NEW_LOOK } from './look';
 
 function tinted(geo: THREE.BufferGeometry, hex: number): THREE.BufferGeometry {
   const c = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3);
@@ -34,6 +35,41 @@ function palmGeo(): THREE.BufferGeometry {
     parts.push(tinted(fr, k % 2 ? 0x4f8a3a : 0x3f7a30).toNonIndexed());
   }
   for (let k = 0; k < 3; k++) parts.push(tinted(new THREE.SphereGeometry(0.3, 5, 4).translate(x + Math.cos(k * 2.1) * 0.35, y - 0.4, Math.sin(k * 2.1) * 0.35), 0x6b5a2a).toNonIndexed());
+  return mergeGeometries(parts)!;
+}
+
+/** The new look's broadleaf tree (mango, jackfruit, the woods on the Dona Paula hill): a forked trunk under a full,
+ *  rounded crown of several soft clumps. */
+function leafyGeo(crown: number): THREE.BufferGeometry {
+  const parts = [tinted(new THREE.CylinderGeometry(0.35, 0.6, 4.5, 7).translate(0, 2.25, 0), 0x5a4030).toNonIndexed()];
+  for (const a of [0.4, 2.5, 4.4]) parts.push(tinted(new THREE.CylinderGeometry(0.18, 0.3, 3, 5).rotateZ(0.55).rotateY(a).translate(Math.cos(a) * 0.7, 5, -Math.sin(a) * 0.7), 0x5a4030).toNonIndexed());
+  const c = new THREE.Color(crown), dark = c.clone().multiplyScalar(0.78).getHex(), light = c.clone().lerp(new THREE.Color(0x9ac060), 0.25).getHex();
+  const blobs: [number, number, number, number, number][] = [[0, 7.6, 0, 3.4, crown], [2.2, 6.6, 0.8, 2.5, dark], [-2.0, 6.8, -1.0, 2.6, crown], [0.6, 6.5, -2.2, 2.4, dark], [-0.8, 8.6, 1.2, 2.3, light]];
+  for (const [x, y, z, r, col] of blobs) parts.push(tinted(new THREE.IcosahedronGeometry(r, 1).scale(1.1, 0.85, 1.1).translate(x, y, z), col).toNonIndexed());
+  return mergeGeometries(parts)!;
+}
+
+/** The new look's coconut palm: a curving ringed trunk and a crown of arching fronds, each a strip of leaflets that
+ *  droops towards its tip. */
+function palm2Geo(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  let x = 0, y = 0;
+  for (let i = 0; i < 8; i++) {
+    const lean = 0.04 + i * 0.035, h = 1.7;
+    parts.push(tinted(new THREE.CylinderGeometry(0.24 - i * 0.012, 0.28 - i * 0.012, h, 7).rotateZ(-lean).translate(x + Math.sin(lean) * h / 2, y + Math.cos(lean) * h / 2, 0), i % 2 ? 0x8f7a5c : 0x7d6a4e).toNonIndexed());
+    x += Math.sin(lean) * h; y += Math.cos(lean) * h;
+  }
+  for (let k = 0; k < 12; k++) {
+    const a = (k / 12) * Math.PI * 2 + (k % 2) * 0.2, up = k < 4 ? 0.5 : 0;   // a few young fronds stand up
+    let fx = 0, fy = 0, ang = 0.25 - up;
+    for (let sgm = 0; sgm < 4; sgm++) {                  // the frond in four pieces, bending further down each piece
+      const L = 1.4, w = 1.25 - sgm * 0.22;
+      const piece = new THREE.BoxGeometry(L, 0.04, w).translate(L / 2, 0, 0).rotateZ(-ang).translate(fx, fy, 0).rotateY(a).translate(x, y, 0);
+      parts.push(tinted(piece, sgm % 2 ? 0x4c8a36 : 0x3d7a2c).toNonIndexed());
+      fx += Math.cos(ang) * L; fy -= Math.sin(ang) * L; ang += 0.32;
+    }
+  }
+  for (let k = 0; k < 4; k++) parts.push(tinted(new THREE.SphereGeometry(0.28, 6, 5).translate(x + Math.cos(k * 1.6) * 0.32, y - 0.35, Math.sin(k * 1.6) * 0.32), 0x7a6a2a).toNonIndexed());
   return mergeGeometries(parts)!;
 }
 
@@ -69,7 +105,7 @@ export function buildTrees(d: PanjimData, g: Ground, bi: BuildingIndex, si: Stre
   };
   // trees are grouped into map squares 240 m across, one instanced mesh each, so the squares off-screen or far away are
   // skipped entirely (a single mesh for the whole town meant every tree was drawn every frame)
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: !NEW_LOOK });   // the new look: soft rounded shading
   const place = (geo: THREE.BufferGeometry, list: [number, number][], scale: [number, number]) => {
     const C = 240, cells = new Map<number, [number, number][]>();
     for (const q of list) { const k = Math.floor(q[0] / C) * 4096 + Math.floor(q[1] / C); let a = cells.get(k); if (!a) cells.set(k, a = []); a.push(q); }
@@ -80,6 +116,7 @@ export function buildTrees(d: PanjimData, g: Ground, bi: BuildingIndex, si: Stre
         const sc = scale[0] + rnd() * (scale[1] - scale[0]);
         q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd() * Math.PI * 2);
         m.compose(p.set(X, g.heightAt(X, Z), Z), q, s.set(sc, sc, sc)); mesh.setMatrixAt(i, m);
+        if (NEW_LOOK) mesh.setColorAt(i, new THREE.Color().setScalar(0.82 + rnd() * 0.32));   // no two trees quite the same shade
       });
       mesh.computeBoundingSphere();
       mesh.userData.cell = [(Math.floor(k / 4096) + 0.5) * C, ((k % 4096) + 0.5) * C];   // for hiding far squares
@@ -87,13 +124,16 @@ export function buildTrees(d: PanjimData, g: Ground, bi: BuildingIndex, si: Stre
       group.add(mesh);
     }
   };
-  place(treeGeo(3.5, 3.4, 0x467a3a), spots('F', 2), [0.8, 1.4]);
+  if (NEW_LOOK) {
+    // woods: dense mixed canopy (the Raj Bhavan hill at Dona Paula, Altinho's slopes), with coconut palms through it
+    place(leafyGeo(0x3f7234), spots('F', 2.6), [0.8, 1.35]); place(leafyGeo(0x4f8238), spots('F', 1.2), [0.7, 1.2]); place(palm2Geo(), spots('F', 0.5), [0.95, 1.3]);
+  } else place(treeGeo(3.5, 3.4, 0x467a3a), spots('F', 2), [0.8, 1.4]);
   place(treeGeo(1.2, 2.4, 0x2a4a30), spots('M', 1), [0.7, 1.1]);
   // coconut palms over the open ground and along the sand, flowering bushes in the gardens
-  place(palmGeo(), [...spots('G', 0.35), ...spots('S', 0.06), ...spots('B', 0.06)], [0.9, 1.25]);   // a few palms on the sand: Miramar is open beach, casuarinas behind it
+  place(NEW_LOOK ? palm2Geo() : palmGeo(), [...spots('G', 0.35), ...spots('S', 0.06), ...spots('B', 0.06)], [0.9, 1.25]);   // a few palms on the sand: Miramar is open beach, casuarinas behind it
   place(bushGeo(), spots('G', 0.9), [0.8, 1.2]);
   // shade trees in the gardens and open plots, and tufts of tall grass everywhere green
-  place(treeGeo(3.2, 3.0, 0x4f8a3c), spots('G', 0.35), [0.8, 1.3]);
+  place(NEW_LOOK ? leafyGeo(0x4f8a3c) : treeGeo(3.2, 3.0, 0x4f8a3c), spots('G', 0.35), [0.6, 1.0]);
   const tuft = mergeGeometries([0, 1, 2].map(k => tinted(new THREE.ConeGeometry(0.35, 1.4, 4).rotateZ((k - 1) * 0.35).translate((k - 1) * 0.3, 0.6, 0), k === 1 ? 0x5f9a3e : 0x4a8434).toNonIndexed()))!;
   // grass: no outline and no shadow (there are tens of thousands), in its own group
   const grass = new THREE.Group(); grass.name = 'grass'; group.add(grass);

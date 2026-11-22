@@ -8,7 +8,7 @@ import { WATER_Y } from '../world/data';
 import type { AreaContext, AreaInstance, Hold } from './types';
 import type { Cast } from '../entities/cast';
 import { buildCar, pick, ROAD_MIX } from '../entities/cars';
-import { DP } from './donapaulaLand';
+import { DP, donaPaulaLand } from './donapaulaLand';
 
 const RIDE_COST = 100;          // points: Rs 500 (a stuck car pushed out pays Rs 200, 40 points)
 const RIDE_TIME = 34;           // seconds
@@ -29,6 +29,7 @@ export function build(ctx: AreaContext): AreaInstance {
   let seed = 4242; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const box = (l: number, h: number, w: number, x: number, y: number, z: number, c: number, ry = 0) => tint(new THREE.BoxGeometry(l, h, w).rotateY(ry).translate(x, y, z), c);
 
+  const boats: THREE.Object3D[] = [];
   const C = DP.circle, gy = (x: number, z: number) => Math.max(0.6, ctx.g.heightAt(x, z));
 
   // ---- the souvenir stalls by the parking: shells, caps, sunglasses, coconut-shell monkeys ----
@@ -54,31 +55,88 @@ export function build(ctx: AreaContext): AreaInstance {
   }
   group.add(merged(parked));
 
-  // ---- the jetty: a walk from the rocks at the tip out over the water to the round viewpoint with its gazebo ----
-  const J = DP.jetty, V = DP.view, JY = DP.jettyY, jet: THREE.BufferGeometry[] = [];
-  const JL = J.z1 - J.z0;
-  jet.push(box(J.w, 0.6, JL + 4, J.x, JY - 0.3, (J.z0 + J.z1) / 2, 0xd8d0c0));
-  for (let z = J.z0 + 6; z < J.z1; z += 12) for (const s of [-1, 1]) jet.push(box(1, JY + 3, 1, J.x + s * (J.w / 2 - 1), (JY - 3) / 2, z, 0x9a9286));
-  for (const s of [-1, 1]) {
-    jet.push(box(0.25, 0.2, JL - 4, J.x + s * (J.w / 2 - 0.2), JY + 1.0, (J.z0 + J.z1) / 2 + 2, 0xf6f4ee));
-    for (let z = J.z0 + 4; z < J.z1; z += 3) jet.push(box(0.2, 1.0, 0.2, J.x + s * (J.w / 2 - 0.2), JY + 0.5, z, 0xf6f4ee));
+  // ---- the jetty, as in the aerial photos: a wide walk paved in terracotta tiles from the spit out to the rocky islet
+  // with the white viewpoint, a long T-pier off it to the east, low white parapets, blue-tarp stalls along the walk ----
+  const J = DP.jetty, V = DP.view, A = DP.arm, HD = DP.head, JY = DP.jettyY, jet: THREE.BufferGeometry[] = [];
+  const pave = 0xc8805a, paveDark = 0xb06e4c, parapet = 0xf2ede2, pillar = 0x8a7e70;
+  const deck = (cx: number, cz: number, lx: number, lz: number) => {
+    jet.push(box(lx, 0.7, lz, cx, JY - 0.35, cz, pave));
+    for (let k = 0; k < Math.max(lx, lz) / 3; k++) {                       // the tile courses across the walk
+      if (lx > lz) jet.push(box(0.12, 0.02, lz - 0.6, cx - lx / 2 + 1.5 + k * 3, JY + 0.01, cz, paveDark));
+      else jet.push(box(lx - 0.6, 0.02, 0.12, cx, JY + 0.01, cz - lz / 2 + 1.5 + k * 3, paveDark));
+    }
+    // the deck stands on stone piers down into the sea
+    for (let k = 0; k < Math.max(lx, lz); k += 10) for (const s of [-1, 1]) {
+      const px = lx > lz ? cx - lx / 2 + 3 + k : cx + s * (lx / 2 - 1.2), pz = lx > lz ? cz + s * (lz / 2 - 1.2) : cz - lz / 2 + 3 + k;
+      jet.push(box(1.4, JY + 3, 1.4, px, (JY - 3) / 2 - 0.4, pz, pillar));
+    }
+  };
+  const wall = (x0: number, z0: number, x1: number, z1: number) => {     // a low white parapet with a coping
+    const L = Math.hypot(x1 - x0, z1 - z0), a = -Math.atan2(z1 - z0, x1 - x0);
+    jet.push(box(L, 0.7, 0.35, (x0 + x1) / 2, JY + 0.35, (z0 + z1) / 2, parapet, a), box(L, 0.08, 0.5, (x0 + x1) / 2, JY + 0.74, (z0 + z1) / 2, 0xdcd6ca, a));
+  };
+  deck(J.x, (J.z0 + J.z1) / 2, J.w, J.z1 - J.z0);
+  deck((A.x0 + A.x1) / 2, A.z, A.x1 - A.x0, A.w);
+  deck(HD.x, (HD.z0 + HD.z1) / 2, HD.w, HD.z1 - HD.z0);
+  wall(J.x + J.w / 2, J.z0, J.x + J.w / 2, A.z - A.w / 2);                // the walk's east side, up to the arm
+  wall(A.x0 + J.w / 2, A.z + A.w / 2, HD.x - HD.w / 2, A.z + A.w / 2);    // the arm's south side
+  wall(A.x0 + J.w / 2, A.z - A.w / 2, HD.x - HD.w / 2, A.z - A.w / 2);    // its north side
+  wall(HD.x + HD.w / 2, HD.z0, HD.x + HD.w / 2, HD.z1);                   // round the far end
+  wall(HD.x - HD.w / 2, HD.z0, HD.x + HD.w / 2, HD.z0); wall(HD.x - HD.w / 2, HD.z1, HD.x + HD.w / 2, HD.z1);
+  // the blue-tarp stalls down the walk's west side: caps, goggles, shell necklaces, cold drinks
+  const tarp = [0x2a6fd0, 0x3a82e0, 0x1f5fb8];
+  for (let z = J.z0 + 6, i = 0; z < J.z1 - 14; z += 5.2, i++) {
+    const x = J.x - J.w / 2 + 1.6;
+    jet.push(box(2.6, 1.0, 4.4, x, JY + 0.5, z, 0xd8c8a8), box(3.0, 0.12, 4.9, x + 0.2, JY + 2.4, z, tarp[i % 3], 0), box(0.1, 2.4, 0.1, x + 1.5, JY + 1.2, z - 2.2, 0x888888));
+    for (let k = 0; k < 4; k++) jet.push(box(0.45, 0.35, 0.45, x - 0.6 + (k % 2) * 0.9, JY + 1.2, z - 1.2 + k * 0.8, awn[(i + k) % 6]));
   }
-  jet.push(tint(new THREE.CylinderGeometry(V.r, V.r, 0.6, 28).translate(V.x, JY - 0.3, V.z), 0xd8d0c0), tint(new THREE.CylinderGeometry(V.r - 2, V.r - 1, JY + 3, 20).translate(V.x, (JY - 3) / 2 - 0.3, V.z), 0x9a9286));
-  for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; jet.push(box(0.5, 4.2, 0.5, V.x + Math.cos(a) * 7, JY + 2.1, V.z + Math.sin(a) * 7, 0xf6f4ee)); }
-  jet.push(tint(new THREE.ConeGeometry(9.5, 3.5, 6).translate(V.x, JY + 5.9, V.z), 0xb0403a));
-  for (let k = 0; k < 24; k++) { const a = k * Math.PI / 12; if (Math.abs(Math.sin(a) + 1) < 0.08) continue; jet.push(box(0.2, 1.0, 0.2, V.x + Math.cos(a) * (V.r - 0.3), JY + 0.5, V.z + Math.sin(a) * (V.r - 0.3), 0xf6f4ee)); }
-  // the statue of the couple on its pedestal, where the jetty starts
+  // the islet: red laterite rocks round it, scrub and a few palms on top, and the white viewpoint with its steps
+  { const iy = Math.max(1.2, gy(V.x, V.z));
+    for (let k = 0; k < 34; k++) {
+      const a = (k / 34) * Math.PI * 2 + rnd() * 0.15, r = V.r * (0.8 + rnd() * 0.35), s = 1.6 + rnd() * 2.4;
+      jet.push(tint(new THREE.DodecahedronGeometry(s, 0).scale(1.2, 0.7, 1).rotateY(rnd() * 6).translate(V.x + Math.cos(a) * r, s * 0.25, V.z + Math.sin(a) * r), [0x8a3a26, 0x9c4630, 0x7a3220][k % 3]));
+    }
+    jet.push(tint(new THREE.CylinderGeometry(V.r * 0.8, V.r, iy + 1.5, 14).translate(V.x, (iy - 1.5) / 2, V.z), 0x8e4a32));   // the rock itself
+    for (let k = 0; k < 10; k++) { const a = rnd() * 6.28, r = rnd() * V.r * 0.6; jet.push(tint(new THREE.IcosahedronGeometry(1.4 + rnd(), 1).scale(1.2, 0.8, 1.2).translate(V.x + Math.cos(a) * r, iy + 1.2, V.z + Math.sin(a) * r), k % 2 ? 0x3f7a34 : 0x55893c)); }
+    const vx = V.x - 6, vz = V.z + 2;
+    jet.push(box(9, 0.6, 9, vx, iy + 0.3, vz, 0xeeeae0), box(8, 3.2, 8, vx, iy + 2.2, vz, 0xf6f3ea), box(9.2, 0.5, 9.2, vx, iy + 4.0, vz, 0xe2ddd0));
+    jet.push(tint(new THREE.SphereGeometry(2.8, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2).translate(vx, iy + 4.2, vz), 0xf6f3ea));
+    for (const [dx, dz] of [[-4, 0], [4, 0], [0, -4], [0, 4]]) jet.push(box(dx ? 0.2 : 2.6, 2.0, dx ? 2.6 : 0.2, vx + dx * 1.01, iy + 1.6, vz + dz * 1.01, 0x3a3a3e));   // the arched openings
+    for (let k = 0; k < 5; k++) jet.push(box(4, 0.4, 1.2, J.x - J.w / 2 - 2, JY - 0.2 - k * 0.3, J.z1 + 1 + k * 1.2, 0xe2ddd0));   // steps up from the walk
+  }
+  // the statue of the couple on its pedestal, on the rocks where the walk starts
   {
     const st = DP.statue, y = gy(st.x, st.z);
     jet.push(box(5, 2.4, 5, st.x, y + 1.2, st.z, 0xe8e2d4), box(0.9, 3.4, 0.9, st.x - 0.7, y + 4.1, st.z, 0xc8c4bc), box(0.9, 3.0, 0.9, st.x + 0.7, y + 3.9, st.z, 0xc8c4bc));
     jet.push(tint(new THREE.SphereGeometry(0.55, 10, 8).translate(st.x - 0.7, y + 6.2, st.z), 0xc8c4bc), tint(new THREE.SphereGeometry(0.5, 10, 8).translate(st.x + 0.7, y + 5.8, st.z), 0xc8c4bc));
     jet.push(box(2.4, 0.4, 0.4, st.x + 1.6, y + 5.2, st.z, 0xc8c4bc, -0.5));   // her arm, pointing out to sea
   }
+  // red laterite boulders all along the tip's shore, where the land meets the sea
+  for (let x = 640; x < 960; x += 7) for (let z = 5560; z < 5860; z += 7) {
+    const w0 = ctx.g.isWet(x, z); if (w0) continue;
+    if (!(ctx.g.isWet(x + 9, z) || ctx.g.isWet(x - 9, z) || ctx.g.isWet(x, z + 9) || ctx.g.isWet(x, z - 9))) continue;
+    if (Math.abs(x - J.x) < J.w && z > J.z0 - 8) continue;
+    const s = 1.4 + rnd() * 2.6, ox = (rnd() - 0.5) * 6, oz = (rnd() - 0.5) * 6;
+    jet.push(tint(new THREE.DodecahedronGeometry(s, 0).scale(1.3, 0.65, 1).rotateY(rnd() * 6).translate(x + ox, Math.max(0.2, gy(x + ox, z + oz) - s * 0.3), z + oz), [0x8a3a26, 0x9c4630, 0x7a3220, 0x6e3a2a][Math.floor(rnd() * 4)]));
+  }
   group.add(merged(jet));
+  // lamps along the walk, lit at night
   const glow = new THREE.MeshBasicMaterial({ color: 0xffd98a });
-  for (let z = J.z0 + 12; z < J.z1; z += 24) for (const s of [-1, 1]) {
-    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 4.5, 5), new THREE.MeshLambertMaterial({ color: 0x2a2a2e })); p.position.set(J.x + s * (J.w / 2 - 0.6), JY + 2.25, z); group.add(p);
-    const l = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 6), glow); l.position.set(J.x + s * (J.w / 2 - 0.6), JY + 4.6, z); group.add(l);
+  for (let z = J.z0 + 10; z < J.z1 - 6; z += 20) {
+    const x = J.x + J.w / 2 - 0.5;
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 4.5, 5), new THREE.MeshLambertMaterial({ color: 0x2a2a2e })); p.position.set(x, JY + 2.25, z); group.add(p);
+    const l = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 6), glow); l.position.set(x, JY + 4.6, z); group.add(l);
+  }
+  // fishing boats and canoes moored in the bay east of the jetty, as in the photo
+  {
+    const hulls = [0x2a8ad0, 0x2fa0b8, 0xf2f0ea, 0xd8402a, 0x3a9a6a];
+    for (let k = 0, n = 0; k < 400 && n < 22; k++) {
+      const x = 850 + rnd() * 300, z = 5560 + rnd() * 230;
+      if (!ctx.g.isWet(x, z) || !ctx.g.isWet(x + 6, z) || !ctx.g.isWet(x - 6, z) || (x > 820 && x < 915 && z > 5770 && z < 5850) || Math.abs(z - DP.arm.z) < 9) continue;
+      const col = hulls[n % hulls.length], b = new THREE.Group();
+      b.add(merged([box(6, 0.9, 1.7, 0, 0.35, 0, col), box(1.6, 0.7, 1.2, 3.3, 0.45, 0, col, 0), box(5.4, 0.1, 1.4, 0, 0.82, 0, 0x6a4a30), box(1.4, 0.8, 1.2, -1.2, 1.2, 0, 0xf2f0ea)]));
+      b.position.set(x, WATER_Y - 0.15, z); b.rotation.y = rnd() * 6.28; b.userData.bob = rnd() * 6; group.add(b); boats.push(b); n++;
+    }
   }
 
   // ---- the jet skis, bobbing in the bay ----
@@ -126,7 +184,7 @@ export function build(ctx: AreaContext): AreaInstance {
       at: { x: (stallAt[0]?.[0] ?? DP.parking.x) + 2, z: (stallAt[0]?.[1] ?? DP.parking.z + 30) + 5 }, from: 600, to: 1260, obj: null, said: 0, face: 0 },
     { c: { name: 'Babu', job: 'photographer', outfit: 'shirt', top: 0xe07ab0, bottom: 0x2a2a3a, hair: 'black', skin: 2, prop: 'camera', hint: 'chatty',
       lines: ['One photo, fifty rupees! Printed in five minutes, with the statue behind.', 'Stand there, there... little left... smile! Aay, you blinked.', 'Honeymoon couples, every day forty, fifty. All want the same photo, same pose.'] },
-      at: { x: DP.jetty.x + 2, z: DP.jetty.z0 + 30 }, from: 600, to: 1140, obj: null, said: 0, face: 0 },
+      at: { x: DP.jetty.x + 2, z: DP.jetty.z0 + 40 }, from: 600, to: 1140, obj: null, said: 0, face: 0 },
     { c: { name: 'Peter', job: 'coconut seller', outfit: 'kurta', top: 0xf6f4ee, bottom: 0x6a5a40, hair: 'straw', skin: 2, prop: 'none', hint: 'kind',
       lines: ['Tender coconut, cold cold! I keep them in the shade only.', 'After, I cut it open, you eat the malai with this spoon. Free.', 'Thirty years I am here. Before, there were no buses, only the fishermen and me.'] },
       at: { x: DP.statue.x + 8, z: DP.statue.z - 10 }, from: 540, to: 1080, obj: null, said: 0, face: 0 },
@@ -135,7 +193,7 @@ export function build(ctx: AreaContext): AreaInstance {
       at: { x: C.x + 16, z: C.z + 4 }, from: 480, to: 1200, obj: null, said: 0, face: 0 },
     { c: { name: 'Mr. Gaonkar', job: 'old fisherman', outfit: 'shirt', top: 0x8aa8c8, bottom: 0xf5f0e0, hair: 'grey', skin: 2, prop: 'cane', old: true, hint: 'vague',
       lines: ['You know why it is called Dona Paula? A viceroy\'s daughter, Paula, they say she jumped from these rocks for love.', 'Some nights, they say, she rises from the sea with a pearl necklace. I have never seen. ...Not sure also.', 'Before all this jetty and photo-photo, we used to dry fish right here on the rocks.'] },
-      at: { x: V.x + 6, z: V.z + 5 }, from: 960, to: 1230, obj: null, said: 0, face: 0 },
+      at: { x: DP.head.x, z: DP.head.z0 + 10 }, from: 960, to: 1230, obj: null, said: 0, face: 0 },
   ];
   const onShift = (p: Local) => { const m = ctx.clock(); return m >= p.from && m < p.to; };
 
@@ -195,7 +253,7 @@ export function build(ctx: AreaContext): AreaInstance {
         if (show && !p.obj) { p.obj = ctx.figure(p.c); group.add(p.obj); }
         if (!p.obj) continue;
         p.obj.visible = show; if (!show) continue;
-        const onJetty = ctx.free(p.at.x, p.at.z) && (Math.abs(p.at.x - DP.jetty.x) < 5 && p.at.z > DP.jetty.z0 || Math.hypot(p.at.x - VV.x, p.at.z - VV.z) < VV.r);
+        const onJetty = donaPaulaLand.free(p.at.x, p.at.z);
         p.obj.position.set(p.at.x, (onJetty ? DP.jettyY : gy(p.at.x, p.at.z)) + 0.15, p.at.z);
         const near = Math.hypot(p.at.x - px, p.at.z - pz) < 8;
         p.obj.rotation.y = near ? -Math.atan2(pz - p.at.z, px - p.at.x) : Math.sin(time * 0.3 + p.c.name.length) * 1.5;
@@ -213,6 +271,7 @@ export function build(ctx: AreaContext): AreaInstance {
         const q = at(c.s), y = gy(q.x, q.z);
         c.obj.position.set(q.x, y + 0.08, q.z); c.obj.rotation.y = -Math.atan2(q.hz, q.hx);
       });
+      for (const bt of boats) { bt.position.y = WATER_Y - 0.15 + Math.sin(time * 1.4 + bt.userData.bob) * 0.12; bt.rotation.z = Math.sin(time * 1.1 + bt.userData.bob) * 0.05; }
       // jet skis bob; the ride
       skis.forEach((s, i) => { if (s !== rideSki || ride < 0) { s.position.y = WATER_Y + Math.sin(time * 1.8 + i) * 0.12 - 0.1; s.rotation.z = Math.sin(time * 1.3 + i) * 0.06; } });
       // the ride moves on; the ski and the child are placed together when the game asks where the child is (hold)
