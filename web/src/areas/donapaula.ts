@@ -183,7 +183,7 @@ export function build(ctx: AreaContext): AreaInstance {
   ].map(([x, z]) => new THREE.Vector3(x, 0, z)), false, 'centripetal');
   const spray = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(new Array(90 * 3).fill(0), 3)), new THREE.PointsMaterial({ color: 0xf4fbff, size: 0.5 }));
   spray.visible = false; group.add(spray);
-  let ride = -1, rideSki: THREE.Group | null = null, pending: { msg: string; pts: number } | null = null, held: Hold | null = null, whistleT = 0, landing = false;
+  let ride = -1, rideSki: THREE.Group | null = null, pending: { msg: string; pts: number } | null = null, landed = 0, whistleT = 0, landing = false;
 
   return {
     group,
@@ -210,7 +210,20 @@ export function build(ctx: AreaContext): AreaInstance {
       if (onShift(naik) && whistleT <= 0 && Math.hypot(px - C.x, pz - C.z) < C.r + 7 && Math.hypot(px - C.x, pz - C.z) > C.r - 7) { whistleT = 15; return { msg: 'Phreeeet! Havaldar Naik: "Oye! Off the road, baba! You want to get flattened by a tourist bus?"', pts: 0 }; }
       return null;
     },
-    hold: () => held,
+    hold: () => {
+      if (landed) { landed = 0; return { x: DP.beach.x + 10, z: DP.beach.z - 18, y: Y, heading: -Math.PI / 2 }; }   // back on the sand
+      if (ride < 0 || !rideSki) return null;
+      const time = performance.now() / 1000;
+      const u = Math.min(1, ride / RIDE_TIME), p = loop.getPointAt(u), t = loop.getTangentAt(u), t2 = loop.getTangentAt(Math.min(1, u + 0.01));
+      const turn = t.x * t2.z - t.z * t2.x, bob = Math.abs(Math.sin(time * 5)) * 0.35;
+      rideSki.position.set(p.x, WATER_Y + bob, p.z); rideSki.rotation.set(Math.max(-0.35, Math.min(0.35, -turn * 12)), -Math.atan2(t.z, t.x), 0.08 + Math.sin(time * 5) * 0.05, 'YXZ');   // leans into the turns
+      // the spray behind
+      spray.visible = true; spray.position.copy(rideSki.position); spray.rotation.y = rideSki.rotation.y;
+      const a = spray.geometry.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < a.count; i++) { const k = (time * 2.4 + i / a.count) % 1; a.setXYZ(i, -2.5 - k * 9, k * 2.6 - k * k * 2.4, Math.sin(i * 2.3) * (0.4 + k * 2)); }
+      a.needsUpdate = true;
+      return { x: p.x, z: p.z, y: WATER_Y + bob + 1.1, heading: Math.atan2(t.z, t.x) } as Hold;
+    },
     update: (dt, time, px, pz) => {
       // people: there in their hours, turning to you when you come near
       for (const p of locals) {
@@ -238,19 +251,10 @@ export function build(ctx: AreaContext): AreaInstance {
       });
       // jet skis bob; the ride
       skis.forEach((s, i) => { if (s !== rideSki || ride < 0) { s.position.y = WATER_Y + Math.sin(time * 1.8 + i) * 0.12 - 0.1; s.rotation.z = Math.sin(time * 1.3 + i) * 0.06; } });
-      held = null;
+      // the ride moves on; the ski and the child are placed together when the game asks where the child is (hold)
       if (ride >= 0 && rideSki) {
         ride += dt;
-        const u = Math.min(1, ride / RIDE_TIME), p = loop.getPointAt(u), t = loop.getTangentAt(u), t2 = loop.getTangentAt(Math.min(1, u + 0.01));
-        const turn = t.x * t2.z - t.z * t2.x, bob = Math.abs(Math.sin(time * 5)) * 0.35;
-        rideSki.position.set(p.x, WATER_Y + bob, p.z); rideSki.rotation.set(0, 0, 0); rideSki.rotation.y = -Math.atan2(t.z, t.x); rideSki.rotation.x = Math.max(-0.35, Math.min(0.35, -turn * 12));   // leans into the turns rideSki.rotation.z = 0.08 + Math.sin(time * 5) * 0.05;
-        held = { x: p.x, z: p.z, y: WATER_Y + bob + 1.1, heading: Math.atan2(t.z, t.x) };
-        // the spray behind
-        spray.visible = true; spray.position.copy(rideSki.position); spray.rotation.y = rideSki.rotation.y;
-        const a = spray.geometry.attributes.position as THREE.BufferAttribute;
-        for (let i = 0; i < a.count; i++) { const k = (time * 2.4 + i / a.count) % 1; a.setXYZ(i, -2.5 - k * 9, k * 2.6 - k * k * 2.4, Math.sin(i * 2.3) * (0.4 + k * 2)); }
-        a.needsUpdate = true;
-        if (u >= 1) { ride = -1; spray.visible = false; held = { x: DP.beach.x + 10, z: DP.beach.z - 18, y: Y, heading: -Math.PI / 2 }; landing = true; rideSki.position.set(DP.beach.x - 22 + skis.indexOf(rideSki) * 16, WATER_Y, DP.beach.z + 16); rideSki.rotation.set(0, Math.PI / 2, 0); }
+        if (ride >= RIDE_TIME) { ride = -1; spray.visible = false; landed = 1; landing = true; rideSki.position.set(DP.beach.x - 22 + skis.indexOf(rideSki) * 16, WATER_Y, DP.beach.z + 16); rideSki.rotation.set(0, Math.PI / 2, 0); }
       }
     },
   };
