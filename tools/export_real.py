@@ -14,6 +14,7 @@ ROOT = MR.ROOT
 HTML = ROOT / 'rakhondar.html'
 src = HTML.read_text(encoding='utf-8')
 head = src[src.index('/* VILLAGE-DATA panjim */'):][:400]
+if MR.REG != 'panjim': head = json.dumps({k: v for k, v in json.loads((ROOT / 'data' / f'{MR.REG}.map.json').read_text(encoding='utf-8')).items() if k != 'rows'}, separators=(',', ':'))
 V = {'centre': json.loads(re.search(r'"centre":(\[[^\]]*\])', head).group(1)), 'tile': float(re.search(r'"tile":([\d.]+)', head).group(1)),
      'W': int(re.search(r'"W":(\d+)', head).group(1)), 'H': int(re.search(r'"H":(\d+)', head).group(1))}
 LAT, LON, TILE, W, H = V['centre'][0], V['centre'][1], V['tile'], V['W'], V['H']
@@ -163,6 +164,9 @@ for jf in sorted((ROOT / 'sprites').glob('landmark_*.json')):
 out = {'tile': TILE, 'b': blds, 'r': roads, 'names': names, 'p': paths, 'water': polys(MR.water), 'mang': polys(MR.mangroves), 'marsh': polys(MR.marsh),
        'eg': G, 'ew': gw, 'eh': gh, 'elev': elev, 'lm': lms,
        'places': [[nm, *tile(*MR.xy(la, lo))] for nm, la, lo, z in MR.LABELS]}   # neighbourhood names for the maps
+if MR.REG != 'panjim':
+    (ROOT / 'data' / f'{MR.REG}.real.json').write_text(json.dumps(out, separators=(',', ':')), encoding='utf-8')
+    print(f'{len(blds)} buildings, {len(roads)} roads, {len(paths)} paths -> data/{MR.REG}.real.json'); raise SystemExit
 line = '/* REAL-DATA panjim */const REAL_PANJIM = ' + json.dumps(out, separators=(',', ':')) + ';'
 if '/* REAL-DATA panjim */' in src:
     src = re.sub(r'^/\* REAL-DATA panjim \*/.*$', lambda m: line, src, count=1, flags=re.M)

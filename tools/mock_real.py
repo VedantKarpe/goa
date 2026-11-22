@@ -11,8 +11,9 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / 'mock'; OUT.mkdir(exist_ok=True)
-els = json.load(open(ROOT / 'data/panjim.osm.json', encoding='utf-8'))['elements']
-EL = json.load(open(ROOT / 'data/panjim.elev.json'))
+REG = __import__('os').environ.get('GOA_REGION', 'panjim')   # another region: data/REG.* (tools/fetch_region.py), for the 3D game only
+els = json.load(open(ROOT / f'data/{REG}.osm.json', encoding='utf-8'))['elements']
+EL = json.load(open(ROOT / f'data/{REG}.elev.json'))
 LA0, LA1, LO0, LO1 = EL['bbox']
 LAT0 = (LA0 + LA1) / 2
 KX, KY = 111320 * math.cos(math.radians(LAT0)), 110540
@@ -432,7 +433,8 @@ def render(name, x0, y0, x1, y1, scale, zscale, labels):
 LABELS = [('Mandovi', 15.5040, 73.8250, 0), ('Panaji', 15.49899, 73.82821, 35), ('Church Square', 15.4987, 73.82891, 25), ('Fontainhas', 15.49666, 73.83108, 25),
           ('São Tomé', 15.49945, 73.83218, 20), ('Mala', 15.49205, 73.82948, 20), ('Altinho', 15.48789, 73.82626, 25), ('Campal', 15.49412, 73.81957, 15),
           ('Santa Inez', 15.48693, 73.81752, 15), ('Patto', 15.49515, 73.83542, 40), ('Panjim Bazaar', 15.49775, 73.82602, 25), ('Neugi Nagar', 15.48931, 73.83119, 15),
-          ('Ourém creek', 15.4935, 73.8335, 0), ('Atal Setu', 15.5040, 73.8445, 30), ('Ponte de Linhares', 15.4990, 73.8490, 10)]
+          ('Ourém creek', 15.4935, 73.8335, 0), ('Atal Setu', 15.5040, 73.8445, 30), ('Ponte de Linhares', 15.4990, 73.8490, 10),
+          ('Caranzalem', 15.4718, 73.8085, 15), ('Taleigao', 15.4685, 73.8265, 20), ('Dona Paula', 15.4560, 73.8050, 15), ('Goa University', 15.4593, 73.8352, 15)]
 if __name__ == '__main__':
     render('panaji_overview.png', 0, 0, W_M, H_M, 0.36, 0.9, LABELS)
     dx, dy = xy(15.5010, 73.8240); ex, ey = xy(15.4880, 73.8370)

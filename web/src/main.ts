@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { loadPanjim, Ground, T } from './world/data';
 import { buildTerrain, buildWater, waterTime } from './world/terrain';
 import { buildRoads, StreetIndex } from './world/roads';
-import { buildBuildings, BuildingIndex, windowsLit } from './world/buildings';
+import { buildBuildings, BuildingIndex, windowsLit, cullChunks } from './world/buildings';
 import { buildTrees } from './world/trees';
 import { Child } from './entities/child';
 import { Input } from './systems/input';
@@ -32,7 +32,7 @@ import { Blackout } from './systems/blackout';
 import { buildPromenade } from './world/promenade';
 import { Cows } from './entities/cows';
 import { Rentals } from './entities/rentals';
-import { DP, donaPaulaLand } from './areas/donapaulaLand';
+import { donaPaulaLand, fitJetty } from './areas/donapaulaLand';
 import { buildShops, buildLoveSign } from './world/shops';
 import { Campaign } from './systems/campaign';
 import { AreaManager } from './areas/manager';
@@ -83,7 +83,7 @@ async function start() {
   // the same drawn shoreline
   const solidGround = (X: number, Z: number) => { const s = si.at(X, Z); return (!!s && s.deck === null) || bi.solid(X, Z, 9); };   // a bank 9 m round every building, so none stands in the water
   const drawnLand = (X: number, Z: number) => (solidGround(X, Z) ? 1 : g.landAt(X, Z));
-  scene.add(buildTerrain(d, g, solidGround), buildWater(d));
+  const terrain = buildTerrain(d, g, solidGround); scene.add(terrain, buildWater(d));
   const atalGlow = new THREE.MeshBasicMaterial({ color: 0xd8d6d0 });
   for (const l of d.lm) for (const [x, y] of l.at) {
     const m = rawModel(l.name); if (!m) continue;
@@ -101,8 +101,9 @@ async function start() {
   const child = new Child(); scene.add(child.obj);
   const move = new Movement(g, bi, si);
   // start below the Church of the Immaculate Conception, where the canvas game starts
-  let px = 92 * T, pz = 34 * T;
-  if (!move.free(px, pz)) for (let r = 2; r < 200 && !move.free(px, pz); r += 2) { px = 92 * T + r; }
+  const OX = d.ox ?? 0;   // the old Panjim map's tile x, shifted since the map grew west to Dona Paula
+  let px = (92 + OX) * T, pz = 34 * T;
+  if (!move.free(px, pz)) for (let r = 2; r < 200 && !move.free(px, pz); r += 2) { px = (92 + OX) * T + r; }
 
   const net = new Network(d, g);
   scene.add(buildStreetLife(net, g, (x, z) => move.free(x, z) && (si.at(x, z)?.deck ?? null) === null));   // nothing parked on a flyover or its ramps
@@ -116,8 +117,8 @@ async function start() {
   const sand = beachSand(d);
   if (sand.length) d.places.push(['Miramar', sand.reduce((a, q) => a + q[0], 0) / sand.length / T, sand.reduce((a, q) => a + q[1], 0) / sand.length / T]);
   // Dona Paula lies past the map's southern edge: its land is walkable, and the pilots go there
-  move.extra.push(donaPaulaLand); d.places.push(['Dona Paula', DP.drop.x / T, DP.drop.z / T]);
-  const areaMgr = new AreaManager(areas(d), { d, g, houses: blds.list, segs: roads.segs, free: (x, z) => move.free(x, z), clock: () => day.min, points: () => st.points, figure: c => people.build(c).obj }, scene);
+  fitJetty((x, z) => g.isWet(x, z)); move.extra.push(donaPaulaLand);   // Dona Paula's jetty, out over the water
+  const areaMgr = new AreaManager(areas(d), { d, g, houses: blds.list, segs: roads.segs, free: (x, z) => move.free(x, z), net, clock: () => day.min, points: () => st.points, figure: c => people.build(c).obj }, scene);
   areaMgr.onLoaded = (name, grp, inst, first) => {
     if (name === 'Fontainhas') toonify(grp, [], () => true); else toonify(grp, [grp], () => false);   // the cartoon look, ink outlines as before
     if (first && inst.cast?.length) people.add(inst.cast);   // the area's own people move into town
@@ -145,10 +146,10 @@ async function start() {
   // "I love Goa" on the riverfront: the open bank west of the Old Secretariat, where the road leaves room by the water
   {
     let best: [number, number] | null = null, bd = 1e9;
-    for (let x = 60 * T; x <= 135 * T; x += 4) for (let z = 0; z <= 30 * T; z += 3) {
+    for (let x = (60 + OX) * T; x <= (135 + OX) * T; x += 4) for (let z = 0; z <= 30 * T; z += 3) {
       if (g.landAt(x, z) < 0.9 || si.at(x, z) || bi.solid(x, z, 5) || g.landAt(x, z - 12) > 0.5) continue;
       if ([[-6, 0], [6, 0], [0, 3]].some(([a, b]) => si.at(x + a, z + b) || g.landAt(x + a, z + b) < 0.9)) continue;
-      const dd = Math.hypot(x - 75.4 * T, z - 9.5 * T); if (dd < bd) { bd = dd; best = [x, z]; }
+      const dd = Math.hypot(x - (75.4 + OX) * T, z - 9.5 * T); if (dd < bd) { bd = dd; best = [x, z]; }
     }
     if (best) scene.add(buildLoveSign(best[0], g.heightAt(best[0], best[1]), best[1], 0));
   }
@@ -475,6 +476,7 @@ async function start() {
       cullT = 0.3;
       areaMgr.refresh(px, pz);
       const far = fog.far + 150, near = 320;
+      cullChunks(blds.group, px, pz, far); cullChunks(terrain, px, pz, far + 300);   // building squares beyond the haze
       for (const m of treeGroup.children) { const c = m.userData.cell as [number, number] | undefined; if (c) m.visible = Math.hypot(c[0] - px, c[1] - pz) < far + 170; }
       for (const gr of smallStuff) for (const o of gr.children) o.visible = Math.hypot(o.position.x - px, o.position.z - pz) < near || o.position.lengthSq() === 0;
     }

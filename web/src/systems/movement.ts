@@ -10,7 +10,6 @@ export class Movement {
   /** Land beyond the map (an area such as Dona Paula): walkable, at its own height. */
   extra: { free(x: number, z: number): boolean; y(x: number, z: number): number }[] = [];
   private extraAt(X: number, Z: number) {
-    if (X >= T && Z >= T && X <= (this.g.W - 1) * T && Z <= (this.g.H - 1) * T) return null;   // on the map: the map decides
     for (const e of this.extra) if (e.free(X, Z)) return e; return null; }
 
   constructor(private g: Ground, private bi: BuildingIndex, private si: StreetIndex) {}

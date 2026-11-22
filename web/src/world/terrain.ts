@@ -34,7 +34,7 @@ function landField(g: Ground): Float32Array {
   return f;
 }
 
-export function buildTerrain(d: PanjimData, g: Ground, solidAt: (X: number, Z: number) => boolean = () => false): THREE.Mesh {
+export function buildTerrain(d: PanjimData, g: Ground, solidAt: (X: number, Z: number) => boolean = () => false): THREE.Group {
   const { W, H } = d, field = landField(g);
   const landAt = (tx: number, ty: number) => {   // bilinear, tx/ty in tiles, sampled at tile centres
     const x = Math.max(0, Math.min(W - 1.001, tx - 0.5)), y = Math.max(0, Math.min(H - 1.001, ty - 0.5)), i = x | 0, j = y | 0, u = x - i, v = y - j;
@@ -42,9 +42,14 @@ export function buildTerrain(d: PanjimData, g: Ground, solidAt: (X: number, Z: n
     return (F(0, 0) * (1 - u) + F(1, 0) * u) * (1 - v) + (F(0, 1) * (1 - u) + F(1, 1) * u) * v;
   };
   const smooth = (e0: number, e1: number, x: number) => { const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
-  const geo = new THREE.PlaneGeometry(W * T, H * T, W * SUB, H * SUB);
+  // the ground in squares of C tiles (300 m), one mesh each, so the camera skips the squares it cannot see
+  const C = 15, group = new THREE.Group(); group.name = 'terrain';
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  for (let j0 = 0; j0 < H; j0 += C) for (let i0 = 0; i0 < W; i0 += C) {
+  const cw = Math.min(C, W - i0), chh = Math.min(C, H - j0);
+  const geo = new THREE.PlaneGeometry(cw * T, chh * T, cw * SUB, chh * SUB);
   geo.rotateX(-Math.PI / 2);                     // lie flat: the plane's rows run along +Z (south)
-  geo.translate((W * T) / 2, 0, (H * T) / 2);
+  geo.translate((i0 + cw / 2) * T, 0, (j0 + chh / 2) * T);
   const pos = geo.attributes.position as THREE.BufferAttribute, col = new Float32Array(pos.count * 3);
   const SAND: [number, number, number] = [0.80, 0.70, 0.48];
   for (let v = 0; v < pos.count; v++) {
@@ -66,10 +71,12 @@ export function buildTerrain(d: PanjimData, g: Ground, solidAt: (X: number, Z: n
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true;
-  mesh.name = 'terrain';
-  return mesh;
+  mesh.userData.cx = (i0 + cw / 2) * T; mesh.userData.cz = (j0 + chh / 2) * T;
+  group.add(mesh);
+  }
+  return group;
 }
 
 /** The water's clock (seconds), advanced by the game each frame. */

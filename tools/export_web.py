@@ -11,7 +11,11 @@ src = (ROOT / 'rakhondar.html').read_text(encoding='utf-8')
 real = json.loads(re.search(r'const REAL_PANJIM = (\{.*?\});\r?\n', src).group(1))
 i = src.index('VILLAGES.panjim = ') + len('VILLAGES.panjim = ')
 vil = json.loads(src[i:src.index(';/* END VILLAGE-DATA panjim', i)])
-out = {'W': vil['W'], 'H': vil['H'], 'tile': vil['tile'], 'rows': vil['rows'], 'centre': vil['centre'], **real}
+REG = __import__('os').environ.get('GOA_REGION', 'panjim')
+if REG != 'panjim':
+    real = json.loads((ROOT / 'data' / f'{REG}.real.json').read_text(encoding='utf-8')); vil = json.loads((ROOT / 'data' / f'{REG}.map.json').read_text(encoding='utf-8'))
+if REG != 'panjim': vil['rows'] = [r.replace('S', 'W') for r in vil['rows']]   # the importer's sea fill is the game's water
+out = {'ox': 90 if REG != 'panjim' else 0, 'W': vil['W'], 'H': vil['H'], 'tile': vil['tile'], 'rows': vil['rows'], 'centre': vil['centre'], **real}
 dst = ROOT / 'web' / 'public' / 'data' / 'panjim.json'
 dst.parent.mkdir(parents=True, exist_ok=True)
 dst.write_text(json.dumps(out, separators=(',', ':')), encoding='utf-8')

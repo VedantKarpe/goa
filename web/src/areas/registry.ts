@@ -7,7 +7,8 @@ import { DP } from './donapaulaLand';
 /** Miramar's sand (world tile centres): the base game uses it for the place pin and the beach cows. */
 export function beachSand(d: PanjimData): [number, number][] {
   const out: [number, number][] = [];
-  for (let y = 0; y < d.H; y++) for (let x = 0; x < 30; x++) { const c = d.rows[y][x]; if (c === 'S' || c === 'B') out.push([(x + 0.5) * T, (y + 0.5) * T]); }
+  const ox = d.ox ?? 0;   // Miramar's beach: the sand on the old map's west shore, north of Caranzalem
+  for (let y = 0; y < Math.min(d.H, 120); y++) for (let x = ox; x < ox + 30; x++) { const c = d.rows[y][x]; if (c === 'S' || c === 'B') out.push([(x + 0.5) * T, (y + 0.5) * T]); }
   return out;
 }
 
@@ -18,6 +19,6 @@ export function areas(d: PanjimData): AreaEntry[] {
   if (fq) out.push({ name: 'Fontainhas', ...fq, r: 200, load: () => import('./fontainhas') });
   const sand = beachSand(d);
   if (sand.length) out.push({ name: 'Miramar', x: sand.reduce((a, q) => a + q[0], 0) / sand.length, z: sand.reduce((a, q) => a + q[1], 0) / sand.length, r: 220, load: () => import('./miramar') });
-  out.push({ name: 'Dona Paula', x: DP.head.x - 60, z: DP.head.z - 40, r: 300, load: () => import('./donapaula') });
+  out.push({ name: 'Dona Paula', x: (DP.circle.x + DP.beach.x) / 2, z: (DP.circle.z + DP.view.z) / 2, r: 550, load: () => import('./donapaula') });
   return out;
 }

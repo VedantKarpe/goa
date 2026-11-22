@@ -151,9 +151,19 @@ function terraces(b: PanjimData['b'], named: [string, string, number, number, nu
   return out;
 }
 
+export const CHUNK = 300;
+
+/** Hide the squares of a chunked group (children with userData.cx/cz) farther than `r` metres from (x, z). */
+export function cullChunks(group: THREE.Object3D, x: number, z: number, r: number) {
+  for (const c of group.children) if (c.userData.cx !== undefined) c.visible = Math.hypot(c.userData.cx - x, c.userData.cz - z) < r + CHUNK * 0.71;
+}
+
 export function buildBuildings(d: PanjimData, g: Ground): { group: THREE.Group; list: Building[] } {
   const named = d.named ?? [];
-  const geos: THREE.BufferGeometry[] = [], list: Building[] = [];
+  // buildings are merged by map squares (CHUNK metres across), one mesh each: squares off-screen are skipped by the
+  // camera's frustum test, and far ones are hidden (cullChunks), so a big map costs little more than a small one
+  const buckets = new Map<number, THREE.BufferGeometry[]>(), list: Building[] = [];
+  let geos: THREE.BufferGeometry[] = [];
   const fq = d.places.find(q => q[0] === 'Fontainhas'), QX = (fq?.[1] ?? -99) * T, QZ = (fq?.[2] ?? -99) * T, QR = 180;
   const roofFlat = new THREE.Color(0xb8b2a4), roofTile = new THREE.Color(0xa8432a), white = new THREE.Color(0xfaf8f2), ochre = new THREE.Color(0xecd6a0);
   (location.search.includes('plain') ? d.b : terraces(d.b, d.named ?? [], fq ? [fq[1], fq[2]] : undefined)).forEach(   // ?plain: the old boxes, for comparisons
@@ -162,6 +172,7 @@ export function buildBuildings(d: PanjimData, g: Ground): { group: THREE.Group; 
     if (p.length < 3) return;
     // is this one of the named buildings? (its recorded middle falls inside this outline)
     const mx = p.reduce((a, q) => a + q[0], 0) / p.length, mz = p.reduce((a, q) => a + q[1], 0) / p.length;
+    { const k = Math.floor(mx / CHUNK) * 4096 + Math.floor(mz / CHUNK); let b = buckets.get(k); if (!b) buckets.set(k, b = []); geos = b; }
     const nm = named.find(n => inPoly(p, n[2] * T, n[3] * T) || Math.hypot(n[2] * T - mx, n[3] * T - mz) < 6);
     const ov = nm ? OVERRIDE[nm[1]] : undefined;
     const style = ov?.style ?? nm?.[0] ?? '';
@@ -245,12 +256,18 @@ export function buildBuildings(d: PanjimData, g: Ground): { group: THREE.Group; 
     for (const [x, z] of p) { x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); }
     list.push({ p, bb: [x0, z0, x1, z1], base, top: base + h, quarter, wall: wall.getHex() });
   });
-  const merged = mergeGeometries(geos, false)!;
-  for (const gg of geos) gg.dispose();
-  const mesh = new THREE.Mesh(merged, facadeMaterial(facadeTexture(), windowsLit));
-  mesh.castShadow = true; mesh.receiveShadow = true;
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(merged, 35), new THREE.LineBasicMaterial({ color: 0x1a120c, transparent: true, opacity: 0.8 }));
-  const group = new THREE.Group(); group.name = 'buildings'; group.add(mesh, edges);
+  const group = new THREE.Group(); group.name = 'buildings';
+  const mat = facadeMaterial(facadeTexture(), windowsLit), ink = new THREE.LineBasicMaterial({ color: 0x1a120c, transparent: true, opacity: 0.8 });
+  for (const [k, bucket] of buckets) {
+    const merged = mergeGeometries(bucket, false)!;
+    for (const gg of bucket) gg.dispose();
+    const mesh = new THREE.Mesh(merged, mat);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(merged, 35), ink);
+    const chunk = new THREE.Group(); chunk.add(mesh, edges);
+    chunk.userData.cx = (Math.floor(k / 4096) + 0.5) * CHUNK; chunk.userData.cz = ((k % 4096 + 4096) % 4096 + 0.5) * CHUNK;
+    group.add(chunk);
+  }
   return { group, list };
 }
 

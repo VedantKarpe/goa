@@ -192,17 +192,28 @@ def build(name, lat, lon, tile, inline, pins=()):
             L = math.hypot(x2 - x1, y2 - y1) or 1
             seeds.append((int((x1 + x2) / 2 - (y2 - y1) / L * 2.5), int((y1 + y2) / 2 + (x2 - x1) / L * 2.5)))
     stack = [s_ for s_ in seeds if 0 <= s_[0] < W and 0 <= s_[1] < H]
+    # where the coastline does not close inside the map (a big region), the fill would run round its ends and over the
+    # land: with heights at hand (data/NAME.elev.json), the sea never spreads onto ground above 1.5 m
+    ep = DATA / f'{name}.elev.json'; high = lambda x, y: False
+    if ep.exists():
+        EL = json.loads(ep.read_text()); s0, n0, w0, e0 = EL['bbox']; enx, eny, ev = EL['nx'], EL['ny'], EL['elev']
+        def high(x, y):
+            la, lo = lat - (y + 0.5 - H / 2) / ky, lon + (x + 0.5 - W / 2) / kx
+            fx = max(0, min(enx - 1.001, (lo - w0) / (e0 - w0) * (enx - 1))); fy = max(0, min(eny - 1.001, (la - s0) / (n0 - s0) * (eny - 1)))
+            i, j = int(fx), int(fy); tx, ty = fx - i, fy - j; v = lambda a, b2: ev[(j + b2) * enx + i + a]
+            return (v(0, 0) * (1 - tx) + v(1, 0) * tx) * (1 - ty) + (v(0, 1) * (1 - tx) + v(1, 1) * tx) * ty > 1.5
     while stack:
         x, y = stack.pop()
-        if not (0 <= x < W and 0 <= y < H) or grid[y][x] not in 'GPFMB':
+        if not (0 <= x < W and 0 <= y < H) or grid[y][x] not in 'GPFMB' or high(x, y):
             continue
         grid[y][x] = 'S'
         stack += [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
     # a strip of sand along the sea, where the coastline ran
+    BAND = 1 if ep.exists() else 3   # a big region (with heights): a thin strip; the old villages keep their wide one
     for y in range(H):
         for x in range(W):
             if grid[y][x] == 'C' or (grid[y][x] in 'GF' and any(0 <= x + dx < W and 0 <= y + dy < H and grid[y + dy][x + dx] == 'S'
-                                                                for dx in range(-3, 4) for dy in range(-3, 4))):
+                                                                for dx in range(-BAND, BAND + 1) for dy in range(-BAND, BAND + 1))):
                 grid[y][x] = 'B'
     ROADS = {'trunk': 2.4, 'primary': 2.4, 'secondary': 2.2, 'tertiary': 2.0}
     LANES = {'unclassified': 1.6, 'residential': 1.6, 'living_street': 1.6, 'service': 1.3, 'track': 1.3, 'path': 1.1, 'footway': 1.1}

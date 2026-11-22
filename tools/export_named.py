@@ -12,6 +12,8 @@ import json, math, pathlib, re
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 src = (ROOT / 'rakhondar.html').read_text(encoding='utf-8')
 head = src[src.index('/* VILLAGE-DATA panjim */'):][:400]
+REG = __import__('os').environ.get('GOA_REGION', 'panjim')
+if REG != 'panjim': head = json.dumps({k: v for k, v in json.loads((ROOT / 'data' / f'{REG}.map.json').read_text(encoding='utf-8')).items() if k != 'rows'}, separators=(',', ':'))
 LAT, LON = json.loads(re.search(r'"centre":(\[[^\]]*\])', head).group(1))
 TILE = float(re.search(r'"tile":([\d.]+)', head).group(1)); W = int(re.search(r'"W":(\d+)', head).group(1)); H = int(re.search(r'"H":(\d+)', head).group(1))
 kx, ky = 111320 * math.cos(math.radians(LAT)) / TILE, 110540 / TILE
@@ -26,7 +28,7 @@ MODERN = {'Inox', 'Cine National', 'Caculo Mall', 'Central Towers', 'Dempo House
           'Electricity Department', 'State Bank of India', 'Bharat Sanchar Nigam Ltd', 'Trionora Apartments', 'Shankar Parvati Building', 'Frank Chambers',
           'Campal Clinic', 'Menezes Polyclinic', 'Kadamba Bus Terminus Panaji', 'Fish Market', 'Edcon'}
 
-els = json.load(open(ROOT / 'data' / 'panjim.osm.json', encoding='utf-8'))['elements']
+els = json.load(open(ROOT / 'data' / f'{REG}.osm.json', encoding='utf-8'))['elements']
 named, casinos = [], []
 for e in els:
     t = e.get('tags', {})

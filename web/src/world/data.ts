@@ -9,6 +9,7 @@ type Flat = number[];           // [x0, y0, x1, y1, ...] in tiles
 export interface Landmark { name: string; file: string; at: [number, number][]; cov: number[]; deck: number }
 export interface PanjimData {
   W: number; H: number; tile: number; rows: string[]; centre: [number, number];
+  ox?: number;                                       // tiles the map was widened to the west (old Panjim map x + ox = x)
   b: [Flat, number, number, number, number?][];      // building: outline, storeys, kind (0 house, 1 church, 2 temple), area m², guessed
   r: [Flat, number, number, number, number][];       // street: line, width m, flags (1 bridge, 2 roundabout, 4 one-way, 8 Atal Setu), class, name index
   p: [Flat, number][];                               // footpath: line, flags (1 steps, 2 bridge)

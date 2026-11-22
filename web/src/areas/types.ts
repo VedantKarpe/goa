@@ -5,6 +5,7 @@ import type { PanjimData, Ground } from '../world/data';
 import type { Building } from '../world/buildings';
 import type { Seg } from '../world/roads';
 import type { Cast } from '../entities/cast';
+import type { Network } from '../world/network';
 
 /** What an area gets to build itself from: the map, the ground, the town around it. */
 export interface AreaContext {
@@ -13,6 +14,8 @@ export interface AreaContext {
   houses: Building[];
   segs: Seg[];
   free: (x: number, z: number) => boolean;
+  /** The street network (routes along real roads). */
+  net: Network;
   /** The time of day, in minutes after midnight (for people's working hours). */
   clock: () => number;
   /** The child's points (things that cost money check them). */
