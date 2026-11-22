@@ -59,7 +59,9 @@ export class Look {
   setSize(w: number, h: number, pr: number) {
     if (!this.composer) return;
     this.size = [w, h, pr];
-    this.composer.setPixelRatio(Math.min(1, pr) * this.scale); this.composer.setSize(w, h);
+    // phones have 2-3 pixels per point: drawing at 1 made them blurry. Phones (no occlusion pass) get up to 2, other
+    // screens up to 1.25; frames running slow lower `scale`
+    this.composer.setPixelRatio(Math.min(LIGHT ? 2 : 1.25, pr) * this.scale); this.composer.setSize(w, h);
   }
 
   /** Frames are running slow: give up the costliest effect still on (the occlusion first, then the glow). Returns false
@@ -67,7 +69,7 @@ export class Look {
   degrade(): boolean {
     if (this.ao?.enabled) { this.ao.enabled = false; return true; }
     if (this.bloom?.enabled) { this.bloom.enabled = false; return true; }
-    if (this.composer && this.scale > 0.6) { this.scale -= 0.15; this.setSize(...this.size); return true; }
+    if (this.composer && this.scale > 0.5) { this.scale -= 0.15; this.setSize(...this.size); return true; }
     return false;
   }
 
