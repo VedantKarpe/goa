@@ -18,6 +18,7 @@ import { Monsters } from './entities/monsters';
 import { Clock } from './systems/clock';
 import { Quests } from './systems/quests';
 import { Minimap } from './ui/minimap';
+import { loadEvents, EventCard } from './ui/events';
 import { sfx, unlockAudio } from './systems/sfx';
 import { loadModels, rawModel } from './world/models';
 import { Boats } from './entities/boats';
@@ -165,6 +166,13 @@ async function start() {
   scene.add(buildPromenade(d, g, bi, (x, z) => { const s = si.at(x, z); return !!s && s.half > 2; }, drawnLand));   // no railing across a street
   const bikes = new Bikes(net, g, (x, z) => move.free(x, z) && !si.at(x, z)); scene.add(bikes.group);
   const places2 = new Places(d, g, scene, p => hud.whisper(`Okay, ${p.name}. Follow the green light, baba. ${p.note}`, 6));
+  // what's on: events and ads as pins on the big map; pick one to zoom in, read it and be guided there
+  const evCard = new EventCard(
+    e => { places2.target = { name: e.title, x: e.x, z: e.z, note: '', seen: false }; map.close(); hud.whisper(`Okay, ${e.where}. Follow the green light, baba.`, 6); },
+    e => { map.close(); places2.onTravel({ name: e.where, x: e.x, z: e.z, note: '', seen: false }); },
+    () => map.unzoom());
+  map.onPick = e => (e ? evCard.show(e) : evCard.hide());
+  loadEvents(d).then(ev => { map.events = ev; });
   const boats = new Boats(g, d.casinos ?? []); scene.add(boats.group);
   const pumps = new Pumps(net, g, (x, z) => !bi.solid(x, z, 9) && !g.isWet(x, z) && !si.at(x, z)); scene.add(pumps.group);
   let home: [number, number] = [px, pz];
@@ -474,7 +482,7 @@ async function start() {
     for (const p of places) { const dd = Math.hypot(p.X - px, p.Z - pz); if (dd < nd) { nd = dd; near = p.n; } }
     map.reveal(px, pz, 6);
     mapT -= dt;
-    if (mapT <= 0) { mapT = 0.1; map.draw(px, pz, rig.yaw, [...(campaign.active ? [{ x: campaign.piece.x, z: campaign.piece.z, name: 'Bell', done: false }] : blackout.target ? [{ ...blackout.target, done: false }] : quests.pins), ...(places2.target ? [{ x: places2.target.x, z: places2.target.z, name: places2.target.name, done: false }] : [])], night); }
+    if (mapT <= 0) { mapT = map.busy ? 0 : 0.1; map.draw(px, pz, rig.yaw, [...(campaign.active ? [{ x: campaign.piece.x, z: campaign.piece.z, name: 'Bell', done: false }] : blackout.target ? [{ ...blackout.target, done: false }] : quests.pins), ...(places2.target ? [{ x: places2.target.x, z: places2.target.z, name: places2.target.name, done: false }] : [])], night); }
     // vehicles, people, demons and quest markers come and go: give the new ones the cartoon look too
     inkT -= dt;
     if (inkT <= 0) { inkT = 0.5; for (const gr of [traffic.group, people.group, monsters.group, quests.group]) toonify(gr, [gr], () => false); }

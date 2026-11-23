@@ -1,0 +1,12 @@
+[
+  { "id": "iffi-2026", "type": "event", "title": "IFFI 2026: International Film Festival of India", "where": "INOX & Old GMC, Campal", "place": "Inox",
+    "from": "2026-11-20", "to": "2026-11-28", "blurb": "57th edition, theme \"Stories Without Borders\". Screenings at INOX, festival lights along the riverfront.", "url": "https://iffigoa.org/" },
+  { "id": "panjim-feast-2026", "type": "event", "title": "Feast of Our Lady of the Immaculate Conception", "where": "Panjim Church, Church Square", "place": "Church Square",
+    "from": "2026-12-08", "to": "2026-12-08", "blurb": "Panjim's church feast: festive mass on the famous steps, and the feast fair with sweets and toys in the square." },
+  { "id": "serendipity-2026", "type": "event", "title": "Serendipity Arts Festival", "where": "Venues across Panjim", "place": "Old GMC Building",
+    "from": "2026-12-13", "to": "2026-12-20", "blurb": "11th edition. Art, music, theatre and food spread across Panjim. Free entry.", "url": "https://serendipityartsfestival.com/" },
+  { "id": "christmas-2026", "type": "event", "title": "Christmas midnight mass", "where": "Panjim Church, Church Square", "place": "Church Square",
+    "from": "2026-12-24", "to": "2026-12-25", "blurb": "Stars on every balcao, the church lit up white, and midnight mass on Christmas Eve." },
+  { "id": "sample-ad-1", "type": "ad", "title": "Your shop here", "where": "Panjim Bazaar", "place": "Panjim Bazaar",
+    "from": "2026-01-01", "to": "2027-12-31", "blurb": "Sample ad: this pin can show your offer to everyone exploring virtual Goa." }
+]
