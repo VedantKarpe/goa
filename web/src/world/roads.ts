@@ -56,7 +56,7 @@ function offsetLine(line: [number, number][], d: number): [number, number][] {
 
 export function buildRoads(d: PanjimData, g: Ground): { group: THREE.Group; segs: Seg[] } {
   const group = new THREE.Group(); group.name = 'roads';
-  const pave: number[] = [], paveI: number[] = [], asph: number[] = [], asphI: number[] = [], path: number[] = [], pathI: number[] = [], dash: number[] = [], dashI: number[] = [];
+  const pave: number[] = [], paveI: number[] = [], asph: number[] = [], asphI: number[] = [], path: number[] = [], pathI: number[] = [], dash: number[] = [], dashI: number[] = [], yel: number[] = [], yelI: number[] = [];
   const segs: Seg[] = [];
   const profiles = bridgeProfiles(d, g);
   // where roads lie on top of each other (dual carriageways, slip roads, service roads at a big junction), only the
@@ -79,7 +79,7 @@ export function buildRoads(d: PanjimData, g: Ground): { group: THREE.Group; segs
     return false;
   };
   let ri = -1;
-  for (const [f, w, flags] of d.r) {
+  for (const [f, w, flags, cls, , lanes = 0] of d.r) {
     ri++;
     const line = pts(f).map(([x, y]) => [x * T, y * T] as [number, number]);
     if (line.length < 2) continue;
@@ -89,16 +89,21 @@ export function buildRoads(d: PanjimData, g: Ground): { group: THREE.Group; segs
     const deck: Deck = prof, shift = (k: number): Deck => (prof ? (s: number) => prof(s) + k : null);
     ribbon(line, width + (width >= 12 ? 5 : 3), g, 0.12, shift(-0.05), pave, paveI);
     ribbon(line, width, g, 0.2, deck, asph, asphI);
-    // road markings: a dashed white centre line on every street wide enough for two lanes (a lane divider on the
-    // one-ways), and solid white edge lines on the main roads
-    if (width >= 9 && !(flags & 2)) {
-      const pl = resample(line, 3);
-      for (let i = 0; i + 1 < pl.length; i += 3) if (!onOther((pl[i][0] + pl[i + 1][0]) / 2, (pl[i][1] + pl[i + 1][1]) / 2, ri)) ribbon([pl[i], pl[i + 1]], 0.3, g, 0.28, shift(0.05), dash, dashI, i * 3);
-    }
-    if (width >= 13 && !(flags & 2)) for (const sd of [-1, 1]) {
-      // the edge lines, in short pieces so a stretch over another road can be left out
-      const el = resample(offsetLine(line, sd * (width / 2 - 0.7)), 3);
-      for (let i = 0; i + 1 < el.length; i++) if (!onOther((el[i][0] + el[i + 1][0]) / 2, (el[i][1] + el[i + 1][1]) / 2, ri)) ribbon([el[i], el[i + 1]], 0.22, g, 0.28, shift(0.05), dash, dashI, i * 3);
+    // road markings as on the real road (OpenStreetMap's type, lanes and one-way), the Indian way:
+    //  - the lanes and side streets (residential, service, unclassified): none, as in Goa
+    //  - a two-lane two-way road: one broken white centre line
+    //  - four lanes or more, two-way: a double solid yellow centre line, broken white lines between the lanes
+    //  - a one-way carriageway (each half of a divided road like D. B. Marg): broken white lines between its lanes
+    //  - trunk, primary and secondary roads: solid white edge lines as well
+    const main = cls <= 7, oneway = (flags & 4) !== 0, round = (flags & 2) !== 0;
+    if (main && !round && width >= 6) {
+      const L = lanes > 0 ? lanes : oneway ? (cls <= 3 ? 2 : 1) : cls <= 1 ? 4 : 2, lw = width / L;
+      const broken = (off: number) => { const pl = resample(offsetLine(line, off), 3); for (let i = 0; i + 1 < pl.length; i += 3) if (!onOther((pl[i][0] + pl[i + 1][0]) / 2, (pl[i][1] + pl[i + 1][1]) / 2, ri)) ribbon([pl[i], pl[i + 1]], 0.22, g, 0.28, shift(0.05), dash, dashI, i * 3); };
+      const solid = (off: number, P: number[], I: number[], w2 = 0.2) => { const el = resample(offsetLine(line, off), 3); for (let i = 0; i + 1 < el.length; i++) if (!onOther((el[i][0] + el[i + 1][0]) / 2, (el[i][1] + el[i + 1][1]) / 2, ri)) ribbon([el[i], el[i + 1]], w2, g, 0.28, shift(0.05), P, I, i * 3); };
+      if (oneway) for (let k = 1; k < L; k++) broken(-width / 2 + k * lw);                          // between the lanes of one direction
+      else if (L <= 2) broken(0);                                                                   // the centre line
+      else { solid(-0.22, yel, yelI, 0.16); solid(0.22, yel, yelI, 0.16); for (let k = 1; k < L / 2; k++) { broken(k * lw); broken(-k * lw); } }
+      if (cls <= 5 && width >= 9) for (const sd of [-1, 1]) solid(sd * (width / 2 - 0.55), dash, dashI);   // edge lines on the main roads
     }
     let s0 = 0;
     for (let i = 1; i < line.length; i++) {
@@ -114,9 +119,10 @@ export function buildRoads(d: PanjimData, g: Ground): { group: THREE.Group; segs
     ribbon(line, 2.2, g, 0.16, (flags & 2) ? Math.max(4, g.heightAt(...line[0]) + 0.3) : null, path, pathI);
     for (let i = 1; i < line.length; i++) segs.push({ ax: line[i - 1][0], az: line[i - 1][1], bx: line[i][0], bz: line[i][1], half: 1.6, deck: null });
   }
-  const pv = meshOf(pave, paveI, NEW_LOOK ? 0xd6cbb6 : 0xa65a46, 1), as = meshOf(asph, asphI, NEW_LOOK ? 0x7d7f84 : 0x5c5e62, 2), mk = meshOf(dash, dashI, NEW_LOOK ? 0xfbf8f0 : 0xf2efe6, 3);
+  const pv = meshOf(pave, paveI, NEW_LOOK ? 0xd6cbb6 : 0xa65a46, 1), as = meshOf(asph, asphI, NEW_LOOK ? 0x7d7f84 : 0x5c5e62, 2), mk = meshOf(dash, dashI, NEW_LOOK ? 0xfbf8f0 : 0xf2efe6, 3), yk = meshOf(yel, yelI, 0xf2c230, 3);
   wear(pv.material as THREE.Material, 'pavement'); wear(as.material as THREE.Material, 'asphalt'); wear(mk.material as THREE.Material, 'paint');   // worn, as Panjim's are
-  group.add(pv, meshOf(path, pathI, 0xcdb98e, 1), as, mk);
+  wear(yk.material as THREE.Material, 'paint');
+  group.add(pv, meshOf(path, pathI, 0xcdb98e, 1), as, mk, yk);
   return { group, segs };
 }
 

@@ -14,7 +14,7 @@ export interface PanjimData {
   ox?: number;
   oy?: number;                                       // tiles the map was widened to the north (old Panjim map y + oy = y)                                       // tiles the map was widened to the west (old Panjim map x + ox = x)
   b: [Flat, number, number, number, number?][];      // building: outline, storeys, kind (0 house, 1 church, 2 temple), area m², guessed
-  r: [Flat, number, number, number, number][];       // street: line, width m, flags (1 bridge, 2 roundabout, 4 one-way, 8 Atal Setu), class, name index
+  r: [Flat, number, number, number, number, number?][];   // street: line, width m, flags (1 bridge, 2 roundabout, 4 one-way, 8 Atal Setu), class (trunk 0 ... service 11), name index, lanes (OSM; 0 unknown)
   p: [Flat, number][];                               // footpath: line, flags (1 steps, 2 bridge)
   water: Flat[]; mang: Flat[]; marsh: Flat[];
   eg: number; ew: number; eh: number; elev: number[];  // heights in metres on a grid every eg tiles

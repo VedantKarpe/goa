@@ -138,7 +138,7 @@ for r in MR.roads:
     nm = r['name']
     if nm and nm not in names: names.append(nm)
     flags = (1 if r['bridge'] else 0) | (2 if r['round'] else 0) | (4 if r['oneway'] else 0) | (8 if r.get('atal') else 0)
-    roads.append([flat(r['p']), r['w'], flags, HW_.index(r['hw']), names.index(nm) if nm else -1])
+    roads.append([flat(r['p']), r['w'], flags, HW_.index(r['hw']), names.index(nm) if nm else -1, r.get('lanes', 0)])   # lanes: from OpenStreetMap (0: not mapped)
 paths = [[flat(p['p']), (1 if p['steps'] else 0) | (2 if p['bridge'] else 0)] for p in MR.ALL_PATHS if ok(p['p'])]
 polys = lambda L: [flat(r) for r in L if ok(r)]
 # heights on a grid of 2 tiles, in metres (0 at the water)

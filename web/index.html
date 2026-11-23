@@ -118,6 +118,11 @@
   #map.big { touch-action: none; cursor: grab; }   /* the big map: fingers drag and pinch it, the page does not scroll */
   .speech { pointer-events: auto !important; cursor: pointer; padding-right: 26px !important; }
   .speech b { position: absolute; right: 7px; top: 4px; font-size: 12px; color: #8a6a48; }
+  /* the view buttons: cream with bold dark symbols, so they read against any scene */
+  .btns button { background: #fff4d8 !important; color: #1a1410 !important; border: 2px solid rgba(26,20,16,.55) !important; font: 800 22px/1 system-ui, sans-serif !important; box-shadow: 0 3px 10px rgba(0,0,0,.35); }
+  .btns button:active { transform: scale(.92); background: #f2c230 !important; }
+  #bIn, #bOut { font-size: 26px !important; }
+  @media (max-width: 700px) { .btns button { width: 44px !important; height: 44px !important; } }
   .act button.hot { border-color: #5fd8c8; color: #0a1020; background: #5fd8c8; }
   /* phones: one compact row of actions along the bottom (the ones you use most first), four slim camera buttons in a
      column on the right, the map credit small and out of the way */
@@ -156,7 +161,7 @@
   <button id="mapX" aria-label="Close the map">✕ Close</button><button id="mapBtn" aria-label="Open the map of this town"></button><button id="town" aria-label="Open the map of this town"></button><div id="stick"><i></i></div><div id="places"></div><div id="arrow"></div>
   <div class="act"><button id="bAuto" style="display:none">Auto drive</button><button id="bWhat">What's on</button><button id="bPass">🛂 Passport</button><button id="bShare" style="border-color:rgba(95,216,200,.6);color:#a8f0e6">Share your story</button><button id="bTalk">Talk</button><button id="bLift">Lift</button></div>
   <div class="vignette"></div>
-  <div class="btns"><button id="bHome" aria-label="Reset the view" title="Reset the view (0)">⌂</button><button id="bTiltD" aria-label="Tilt down">⤓</button><button id="bTiltU" aria-label="Tilt up">⤒</button><button id="bL" aria-label="Turn left">⟲</button><button id="bR" aria-label="Turn right">⟳</button><button id="bOut" aria-label="Zoom out">−</button><button id="bIn" aria-label="Zoom in">+</button></div>
+  <div class="btns"><button id="bHome" aria-label="Reset the view" title="Reset the view (0)">⌂</button><button id="bTiltD" aria-label="Tilt down">⤓</button><button id="bTiltU" aria-label="Tilt up">⤒</button><button id="bL" aria-label="Turn the view left" title="Turn left">↺</button><button id="bR" aria-label="Turn the view right" title="Turn right">↻</button><button id="bOut" aria-label="Zoom out" title="Zoom out">−</button><button id="bIn" aria-label="Zoom in" title="Zoom in">+</button></div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

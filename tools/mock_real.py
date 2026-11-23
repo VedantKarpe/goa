@@ -86,7 +86,7 @@ for e in els:
     if hw and e['type'] == 'way':
         pts = [xy(p['lat'], p['lon']) for p in e.get('geometry') or [] if p]
         if len(pts) > 1 and inside(pts):
-            if hw in ROADW: roads.append({'p': pts, 'w': ROADW[hw], 'bridge': bool(t.get('bridge')), 'hw': hw, 'name': t.get('name', ''), 'round': t.get('junction') in ('roundabout', 'circular'), 'oneway': t.get('oneway') == 'yes', 'atal': t.get('name') == 'Atal Setu'})
+            if hw in ROADW: roads.append({'p': pts, 'w': ROADW[hw], 'bridge': bool(t.get('bridge')), 'hw': hw, 'name': t.get('name', ''), 'round': t.get('junction') in ('roundabout', 'circular'), 'oneway': t.get('oneway') == 'yes', 'atal': t.get('name') == 'Atal Setu', 'lanes': int(t['lanes']) if str(t.get('lanes', '')).isdigit() else 0})
             elif hw in ('footway', 'path', 'steps', 'pedestrian', 'track', 'cycleway'): paths.append({'p': pts, 'steps': hw == 'steps', 'bridge': bool(t.get('bridge'))})
     if t.get('amenity') == 'place_of_worship':
         for r in rings(e) if e['type'] != 'node' else []:
