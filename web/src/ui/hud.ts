@@ -1,4 +1,4 @@
-// The on-screen readouts: courage, torch battery, points, the time, the current task, what people say (the whisper box),
+// The on-screen readouts: points, the time, the current task, what people say (the whisper box),
 // the nearest named place, and a small performance line.
 import type * as THREE from 'three';
 
@@ -18,7 +18,7 @@ export class Hud {
   }
   private lockT = 0;
 
-  update(dt: number, renderer: THREE.WebGLRenderer, s: { courage: number; oil: number; points: number; time: string; placeName: string; objective: string; riding: boolean; hint: string }) {
+  update(dt: number, renderer: THREE.WebGLRenderer, s: { points: number; time: string; placeName: string; objective: string; riding: boolean; hint: string }) {
     this.frames++; this.acc += dt; this.worst = Math.max(this.worst, dt);
     if (this.acc >= 0.5) {
       this.fps = Math.round(this.frames / this.acc);
@@ -26,8 +26,7 @@ export class Hud {
       this.perf.textContent = `${this.fps} fps · worst ${Math.round(this.worst * 1000)} ms · ${i.calls} draws`;
       this.frames = 0; this.acc = 0; this.worst = 0;
     }
-    const bar = (v: number, col: string) => `<span class="bar"><i style="width:${Math.max(0, Math.min(100, v))}%;background:${col}"></i></span>`;
-    const html = `<div>Courage ${bar(s.courage, '#9fe8d6')}</div><div>Torch battery ${bar(s.oil, '#f2b441')}</div><div><b>${s.points}</b> points · ${s.time}${s.riding ? ' · <em>riding</em>' : ''}</div>`;
+    const html = `<div><b>${s.points}</b> points · ${s.time}${s.riding ? ' · <em>riding</em>' : ''}</div>`;
     if (this.stats.innerHTML !== html) this.stats.innerHTML = html;
     if (this.place.textContent !== s.placeName) { this.place.textContent = s.placeName; this.place.style.display = s.placeName ? '' : 'none'; }
     const o = s.objective + (s.hint ? ` — ${s.hint}` : '');

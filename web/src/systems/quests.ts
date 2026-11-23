@@ -81,7 +81,7 @@ export class Quests {
     this.list = [
       { kind: 'collect', title: `Clean up ${streetName}`, giver: 'Shantabai', litter: true, spots: bags, pts: 15,
         intro: `Shantabai, sweeping her yard: "Aay deva, plastic everywhere after last night! Collect the bags along ${streetName}, baba."`,
-        outro: `Shantabai: "Look how clean ${streetName} is! Dev borem korum, baba. The spirits like a clean town."` },
+        outro: `Shantabai: "Look how clean ${streetName} is! Dev borem korum, baba. Now the tourists will also like it!"` },
       { kind: 'deliver', title: "Mai's poee", giver: 'Mai', spots: pick(3, 120, 450), pts: 40,
         intro: 'Mai the baker, with a basket of hot poee: "Take these to three houses before they go cold, no? I have marked the doors."',
         outro: 'Mai: "All delivered, and still warm! Borem zalem, baba. Here, one poee for you."' },
