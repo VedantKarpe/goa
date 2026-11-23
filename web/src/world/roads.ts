@@ -69,7 +69,7 @@ function offsetLine(line: [number, number][], d: number): [number, number][] {
 
 export function buildRoads(d: PanjimData, g: Ground): { group: THREE.Group; segs: Seg[] } {
   const group = new THREE.Group(); group.name = 'roads';
-  const pave: number[] = [], paveI: number[] = [], asph: number[] = [], asphI: number[] = [], path: number[] = [], pathI: number[] = [], dash: number[] = [], dashI: number[] = [], yel: number[] = [], yelI: number[] = [], kerb: number[] = [], kerbI: number[] = [], green: number[] = [], greenI: number[] = [], kb: number[] = [], kbI: number[] = [], kbU: number[] = [], kbT: number[] = [], bollards: THREE.Matrix4[] = [];
+  const pave: number[] = [], paveI: number[] = [], asph: number[] = [], asphI: number[] = [], path: number[] = [], pathI: number[] = [], dash: number[] = [], dashI: number[] = [], yel: number[] = [], yelI: number[] = [], kerb: number[] = [], kerbI: number[] = [], green: number[] = [], greenI: number[] = [], kb: number[] = [], kbI: number[] = [], kbU: number[] = [], bAs: number[] = [], bAsI: number[] = [], bPv: number[] = [], bPvI: number[] = [], kbT: number[] = [], bollards: THREE.Matrix4[] = [];
   const segs: Seg[] = [];
   const profiles = bridgeProfiles(d, g);
   // where roads lie on top of each other (dual carriageways, slip roads, service roads at a big junction), only the
@@ -133,11 +133,12 @@ export function buildRoads(d: PanjimData, g: Ground): { group: THREE.Group; segs
     const pq = pair.get(ri), bridge = (flags & 1) !== 0;
     const one = !!pq && pq.D < 13;            // the two halves of one ordinary road (OSM splits some): meet in the middle, a broken centre line
     const pr = one ? undefined : pq;          // a real dual carriageway: a median between the halves
-    const width = one ? Math.max(5, pq!.D * 1.02) : pr ? Math.max(6.5, Math.min(w * ROAD_K, pr.D - MED)) : w * ROAD_K;   // a half of a divided road fits beside its other half
+    const width = (d.r[ri][6] = bridge ? w * 1.15 : one ? Math.max(5, pq!.D * 1.02) : pr ? Math.max(6.5, Math.min(w * ROAD_K, pr.D - MED)) : w * ROAD_K);   // the drawn width, kept for the traffic lanes and parked cars   // a half of a divided road fits beside its other half
     // a bridge is held level: at the height of the higher of its two ends, and never lower than 5 m over the water
     const prof = bridge ? profiles.get(f) ?? null : null;
     const deck: Deck = prof, shift = (k: number): Deck => (prof ? (s: number) => prof(s) + k : null);
-    if (!pr) ribbon(line, width + (width >= 12 ? 5 : 3), g, 0.12, shift(-0.05), pave, paveI);
+    if (bridge) ribbon(line, width + 1.6, g, 0.12, shift(-0.05), bPv, bPvI);   // a deck: its own solid surface (hides what is under it)
+    else if (!pr) ribbon(line, width + (width >= 12 ? 5 : 3), g, 0.12, shift(-0.05), pave, paveI);
     else {
       ribbon(offsetLine(line, -pr.side * (width / 2 + 1.4)), 2.8, g, 0.12, shift(-0.05), pave, paveI);   // the pavement on the outer side only
       if (!bridge) {   // the median on the inner side: this half's share of the kerb, and of the planted strip
@@ -153,7 +154,7 @@ export function buildRoads(d: PanjimData, g: Ground): { group: THREE.Group; segs
         }
       }
     }
-    ribbon(line, width, g, 0.2, deck, asph, asphI);
+    if (bridge) ribbon(line, width, g, 0.2, deck, bAs, bAsI); else ribbon(line, width, g, 0.2, deck, asph, asphI);
     // road markings as on the real road (OpenStreetMap's type, lanes and one-way), the Indian way:
     //  - the lanes and side streets (residential, service, unclassified): none, as in Goa
     //  - a two-lane two-way road: one broken white centre line
@@ -201,6 +202,10 @@ export function buildRoads(d: PanjimData, g: Ground): { group: THREE.Group; segs
   wear(pv.material as THREE.Material, 'pavement'); wear(as.material as THREE.Material, 'asphalt'); wear(mk.material as THREE.Material, 'paint');   // worn, as Panjim's are
   wear(yk.material as THREE.Material, 'paint');
   group.add(pv, meshOf(path, pathI, 0xcdb98e, 1), as, mk, yk, meshOf(kerb, kerbI, 0xe2dccd, 4), meshOf(green, greenI, 0x5e9440, 5), kerbMesh(kb, kbI, kbU, kbT));
+  // bridge decks: solid (they write depth), so the streets, markings and kerbs under a flyover do not show through it
+  for (const [P, I, col] of [[bPv, bPvI, NEW_LOOK ? 0xcfc6b4 : 0xa65a46], [bAs, bAsI, NEW_LOOK ? 0x6a6c71 : 0x5c5e62]] as [number[], number[], number][]) {
+    if (!I.length) continue; const m = meshOf(P, I, col, 3); (m.material as THREE.Material).depthWrite = true; if (col !== 0xcfc6b4 && col !== 0xa65a46) wear(m.material as THREE.Material, 'asphalt'); group.add(m);
+  }
   // the orange bollards on the narrow medians (one instanced mesh)
   if (bollards.length) {
     const bg = new THREE.CylinderGeometry(0.07, 0.08, 0.9, 6).translate(0, 0.45, 0), bm = new THREE.MeshLambertMaterial({ color: 0xf07a22 });

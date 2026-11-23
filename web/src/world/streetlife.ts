@@ -34,7 +34,7 @@ export function buildStreetLife(net: Network, g: Ground, free: (x: number, z: nu
     // parked cars along the kerb, on whichever side, leaving the junctions clear
     if (E.width >= 7) for (let s = 14; s < E.len - 14; s += 9 + rnd() * 30) {
       if (rnd() < 0.45) continue;
-      const p = net.at(e, s), sd = rnd() < 0.5 ? 1 : -1, off = (E.width * 1.5) / 2 - 1.4;
+      const p = net.at(e, s), sd = E.oneWay ? 1 : rnd() < 0.5 ? 1 : -1, off = E.width / 2 - 1.4;   // one-way halves: only the outer (left) kerb, never the middle of the road;   // just inside the kerb (E.width is already the drawn width)
       const x = p.x + p.dz * off * sd, z = p.z - p.dx * off * sd;
       // never on the river side: that kerb is the promenade (or the bank)
       let wet = false; for (let k = 2; k <= 30 && !wet; k += 4) if (g.landAt(x + p.dz * sd * k, z - p.dx * sd * k) < 0.5) wet = true;
@@ -53,7 +53,7 @@ export function buildStreetLife(net: Network, g: Ground, free: (x: number, z: nu
     if (n.out.length < 3) continue;
     for (const e of n.out) {
       const E = net.edge(e); if (E.deck !== null || E.len < 20 || E.width < 7) continue;
-      const p = net.at(e, 9), w = E.width * 1.5 - 1, ang = -Math.atan2(p.dz, p.dx), y = Math.max(0.6, at(p.x, p.z)) + 0.26;
+      const p = net.at(e, 9), w = E.width - 1, ang = -Math.atan2(p.dz, p.dx), y = Math.max(0.6, at(p.x, p.z)) + 0.26;
       for (let k = -w / 2 + 0.6; k < w / 2; k += 1.4) {
         const st = new THREE.BoxGeometry(2.6, 0.04, 0.7).translate(0, 0, k);
         st.rotateY(ang); st.translate(p.x, y, p.z); const kk = key(p.x, p.z); let b = zb.get(kk); if (!b) zb.set(kk, b = []); b.push(painted(st, 0xf2efe6));
