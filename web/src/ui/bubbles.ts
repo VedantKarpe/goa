@@ -29,7 +29,8 @@ export class Bubbles {
   speak(x: number, y: number, z: number, text: string, secs = 6) {
     for (const s of this.speech) s.el.remove();
     const el = document.createElement('div');
-    el.className = 'speech'; el.textContent = text;
+    el.className = 'speech'; el.innerHTML = '<b aria-label="Close">✕</b>'; el.append(text);
+    el.addEventListener('click', e => { e.stopPropagation(); el.remove(); this.speech = this.speech.filter(s => s.el !== el); });
     this.root.appendChild(el);
     this.speech = [{ el, x, y, z, until: performance.now() + secs * 1000 }];
   }

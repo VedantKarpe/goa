@@ -115,6 +115,9 @@
   #stampToast { position: fixed; z-index: 31; left: 50%; top: 64px; transform: translate(-50%, -20px); opacity: 0; display: flex; gap: 10px; align-items: center; padding: 8px 14px; border-radius: 14px; background: #fff4d8; color: #2a1e14; border: 2px solid #f2c230; font: 14px Mukta, sans-serif; pointer-events: none; }
   #stampToast i { font-style: normal; font-size: 24px; } #stampToast b { display: block; color: #a8432a; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
   #stampToast.on { animation: stamp 3s ease forwards; } @keyframes stamp { 10% { opacity: 1; transform: translate(-50%, 0) scale(1.05); } 18% { transform: translate(-50%, 0) scale(1); } 80% { opacity: 1; } to { opacity: 0; transform: translate(-50%, 0); } }
+  #map.big { touch-action: none; cursor: grab; }   /* the big map: fingers drag and pinch it, the page does not scroll */
+  .speech { pointer-events: auto !important; cursor: pointer; padding-right: 26px !important; }
+  .speech b { position: absolute; right: 7px; top: 4px; font-size: 12px; color: #8a6a48; }
   .act button.hot { border-color: #5fd8c8; color: #0a1020; background: #5fd8c8; }
   /* phones: one compact row of actions along the bottom (the ones you use most first), four slim camera buttons in a
      column on the right, the map credit small and out of the way */

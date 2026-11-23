@@ -23,8 +23,10 @@ export class Minimap {
   private view: { x: number; y: number; span: number } | null = null;
   private hits: { x: number; y: number; ev: GoaEvent[] }[] = [];
   private picked: GoaEvent | null = null;
+  /** A finger or the mouse is moving the big map. */
+  private dragging = false;
   /** The big map is moving: draw it every frame. */
-  get busy() { return this.big && !!this.view && !!this.zoom && Math.abs(this.view.span - this.zoom.span) + Math.abs(this.view.x - this.zoom.x) + Math.abs(this.view.y - this.zoom.y) > 0.05; }
+  get busy() { return this.big && (this.dragging || (!!this.view && !!this.zoom && Math.abs(this.view.span - this.zoom.span) + Math.abs(this.view.x - this.zoom.x) + Math.abs(this.view.y - this.zoom.y) > 0.05)); }
 
   constructor(private d: PanjimData) {
     const S = 4; // pixels a tile on the base image
@@ -39,10 +41,32 @@ export class Minimap {
     this.fogCan = document.createElement('canvas'); this.fogCan.width = d.W; this.fogCan.height = d.H;
     this.fogImg = this.fogCan.getContext('2d')!.createImageData(d.W, d.H);
     this.cv = document.getElementById('map') as HTMLCanvasElement;
-    let lastTouch = 0;
-    this.cv.addEventListener('pointerup', e => { if (e.pointerType === 'mouse') return; lastTouch = performance.now(); e.preventDefault(); this.cv.dispatchEvent(new MouseEvent('click', { clientX: e.clientX, clientY: e.clientY })); lastTouch = performance.now(); });
+    let lastTouch = 0, dragged = false;
+    const ptrs = new Map<number, { x: number; y: number }>(); let pinch = 0;
+    const here = () => { if (!this.view || !this.zoom) { const f = { x: this.d.W / 2, y: this.d.H / 2, span: this.full() }; this.view = { ...f }; this.zoom = { ...f }; } return this.zoom; };
+    const setTo = (x: number, y: number, span: number) => { const s = Math.max(8, Math.min(this.full() * 1.2, span)); this.zoom = { x, y, span: s }; this.view = { x, y, span: s }; };
+    this.cv.addEventListener('pointerdown', e => { if (!this.big) return; this.cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); dragged = false; this.dragging = true; if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); } });
+    this.cv.addEventListener('pointermove', e => {
+      if (!this.big || !ptrs.has(e.pointerId)) return;
+      const prev = ptrs.get(e.pointerId)!, z = here(), k = (this.cv.clientWidth || 1) / z.span;
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (ptrs.size === 2) {   // pinch: zoom by how far the fingers moved apart
+        const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinch > 0 && d > 0) setTo(z.x, z.y, z.span * pinch / d); pinch = d; dragged = true; return;
+      }
+      const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+      if (Math.abs(dx) + Math.abs(dy) > 0.5) { setTo(z.x - dx / k, z.y - dy / k, z.span); if (Math.hypot(e.clientX - prev.x, e.clientY - prev.y) > 0) dragged = dragged || Math.abs(dx) + Math.abs(dy) > 3; }
+    });
+    const lift = (e: PointerEvent) => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = 0; if (!ptrs.size) this.dragging = false; };
+    this.cv.addEventListener('pointercancel', lift);
+    this.cv.addEventListener('wheel', e => { if (!this.big) return; e.preventDefault(); const z = here(); setTo(z.x, z.y, z.span * (e.deltaY > 0 ? 1.2 : 1 / 1.2)); }, { passive: false });
+    this.cv.addEventListener('pointerup', e => {
+      lift(e);
+      if (dragged) { dragged = false; lastTouch = performance.now(); return; }   // that was a drag, not a tap
+      if (e.pointerType === 'mouse') return; lastTouch = performance.now(); e.preventDefault(); this.cv.dispatchEvent(new MouseEvent('click', { clientX: e.clientX, clientY: e.clientY })); lastTouch = performance.now();
+    });
     this.cv.addEventListener('click', e => {
-      if (e.isTrusted && performance.now() - lastTouch < 600) return;   // the browser's own click after a touch we already handled
+      if (e.isTrusted && performance.now() - lastTouch < 600) return;   // the browser's own click after a touch (or a drag) we already handled
       if (this.big) {
         const r = this.cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
         let hit: typeof this.hits[0] | null = null, bd = 22;
@@ -117,7 +141,7 @@ export class Minimap {
     let span = this.big ? Math.max(this.d.W, this.d.H * W / H) : 30, fx = this.d.W / 2, fy = this.d.H / 2;
     if (this.big && this.view && this.zoom) {   // ease towards the zoom
       const v = this.view, z = this.zoom, a = 0.18; v.x += (z.x - v.x) * a; v.y += (z.y - v.y) * a; v.span += (z.span - v.span) * a;
-      if (Math.abs(v.span - span) < 0.5 && Math.abs(z.span - span) < 0.5) this.view = this.zoom = null; else { span = v.span; fx = v.x; fy = v.y; }
+      if (Math.abs(v.span - span) < 0.5 && Math.abs(z.span - span) < 0.5 && Math.abs(z.x - fx) < 0.5 && Math.abs(z.y - fy) < 0.5 && Math.abs(v.x - fx) < 0.5 && Math.abs(v.y - fy) < 0.5) this.view = this.zoom = null; else { span = v.span; fx = v.x; fy = v.y; }
     }
     const k = W / span;
     const ox = this.big ? W / 2 - fx * k : W / 2 - (cx / T) * k, oy = this.big ? H / 2 - fy * k : H / 2 - (cz / T) * k;
