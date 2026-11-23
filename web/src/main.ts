@@ -312,7 +312,7 @@ async function start() {
   // the lamp posts and signals are instanced over the whole map (17,000 lamps): draw only the ones near the child,
   // refreshed as they move (copying the nearby instances to the front and drawing just those)
   const instCull: THREE.InstancedMesh[] = [];
-  for (const name of ['street lights', 'signals']) scene.getObjectByName(name)?.traverse(o => { const m = o as THREE.InstancedMesh; if (m.isInstancedMesh && m.count > 400 && !m.instanceColor) instCull.push(m); });   // (lamp heads and glow pools are recoloured by index at dusk: left whole)
+  for (const name of ['street lights', 'signals', 'bollards']) scene.getObjectByName(name)?.traverse(o => { const m = o as THREE.InstancedMesh; if (m.isInstancedMesh && m.count > 400 && !m.instanceColor) instCull.push(m); });   // (lamp heads and glow pools are recoloured by index at dusk: left whole)
   let instAt: [number, number] = [-1e9, -1e9];
   const cullInstances = (r: number) => {
     if (Math.hypot(px - instAt[0], pz - instAt[1]) < 40) return; instAt = [px, pz];
