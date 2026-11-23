@@ -48,7 +48,7 @@ export class Drive {
     const rnd = rng(77);
     const E = net.edges;
     for (let i = 0; i < E.length && this.list.length < 40; i += 1 + Math.floor(rnd() * 14)) {
-      const e = E[i]; if (e.width < 7 || e.len < 40) continue;
+      const e = E[i]; if (e.width < 7 || e.len < 40 || e.cls <= 5) continue;   // taxi ranks on the side streets, not the main roads
       const p = net.at(i, e.len * (0.3 + rnd() * 0.4)), side = rnd() < 0.5 ? -1 : 1, off = e.width / 2 - 1.3;
       const x = p.x + p.dz * off * side, z = p.z - p.dx * off * side;
       if (!free(x, z)) continue;

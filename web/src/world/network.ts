@@ -3,7 +3,7 @@
 import { T, pts, bridgeProfiles, type PanjimData } from './data';
 import type { Ground } from './data';
 
-export interface Edge { a: number; b: number; line: [number, number][]; len: number; width: number; oneWay: boolean; deck: number | null; deckAt?: (s: number) => number }
+export interface Edge { a: number; b: number; line: [number, number][]; len: number; width: number; oneWay: boolean; cls: number; deck: number | null; deckAt?: (s: number) => number }
 export interface Node { x: number; z: number; out: number[] }   // out: edge ids leaving (both directions for two-way)
 
 export class Network {
@@ -23,7 +23,7 @@ export class Network {
       if (i === undefined) { i = this.nodes.length; id.set(k, i); this.nodes.push({ x: x * T, z: y * T, out: [] }); }
       return i;
     };
-    for (const [f, w, flags, , , , drawn] of streets) {
+    for (const [f, w, flags, cls, , , drawn] of streets) {
       const p = pts(f); let start = 0;
       const bridge = (flags & 1) !== 0;
       const prof = bridge ? profiles.get(f) ?? null : null;
@@ -35,7 +35,7 @@ export class Network {
         if (len > 1) {
           const a = node(p[start][0], p[start][1]), b = node(p[i][0], p[i][1]), oneWay = (flags & 4) !== 0;
           const from = sAlong, deckAt = prof ? (s: number) => prof(from + s) : undefined;
-          const e = this.edges.length; this.edges.push({ a, b, line, len, width: drawn ?? w * 1.5, oneWay, deck: prof ? Math.max(prof(from), prof(from + len)) : null, deckAt });
+          const e = this.edges.length; this.edges.push({ a, b, line, len, width: drawn ?? w * 1.5, oneWay, cls, deck: prof ? Math.max(prof(from), prof(from + len)) : null, deckAt });
           this.nodes[a].out.push(e);
           if (!oneWay) this.nodes[b].out.push(~e);   // ~e: the same edge driven backwards
         }

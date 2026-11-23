@@ -32,7 +32,7 @@ export function buildStreetLife(net: Network, g: Ground, free: (x: number, z: nu
     const E = net.edges[e];
     if (E.deck !== null) continue;
     // parked cars along the kerb, on whichever side, leaving the junctions clear
-    if (E.width >= 7) for (let s = 14; s < E.len - 14; s += 9 + rnd() * 30) {
+    if (E.width >= 7 && E.cls > 5) for (let s = 14; s < E.len - 14; s += 9 + rnd() * 30) {
       if (rnd() < 0.45) continue;
       const p = net.at(e, s), sd = E.oneWay ? 1 : rnd() < 0.5 ? 1 : -1, off = E.width / 2 - 1.4;   // one-way halves: only the outer (left) kerb, never the middle of the road;   // just inside the kerb (E.width is already the drawn width)
       const x = p.x + p.dz * off * sd, z = p.z - p.dx * off * sd;
