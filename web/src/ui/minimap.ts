@@ -124,18 +124,18 @@ export class Minimap {
       if (h) h.ev.push(e); else this.hits.push({ x, y, ev: [e] });
     }
     for (const h of this.hits) {
-      const e = h.ev[0], ad = h.ev.every(q => q.type === 'ad'), R = this.big ? 9 : 3.5, sel = h.ev.includes(this.picked!);
-      if (this.big && e.on && !ad) { c.fillStyle = 'rgba(255,95,162,.25)'; c.beginPath(); c.arc(h.x, h.y, R + 5 + Math.sin(performance.now() / 250) * 2, 0, Math.PI * 2); c.fill(); }
-      c.fillStyle = ad ? '#f2c230' : '#ff5fa2'; c.beginPath(); c.arc(h.x, h.y, sel ? R + 3 : R, 0, Math.PI * 2); c.fill();
+      const e = h.ev[0], ad = h.ev.every(q => q.type === 'ad'), story = h.ev.every(q => q.type === 'story'), R = this.big ? 9 : 3.5, sel = h.ev.includes(this.picked!);
+      if (this.big && e.on && !ad && !story) { c.fillStyle = 'rgba(255,95,162,.25)'; c.beginPath(); c.arc(h.x, h.y, R + 5 + Math.sin(performance.now() / 250) * 2, 0, Math.PI * 2); c.fill(); }
+      c.fillStyle = ad ? '#f2c230' : story ? '#5fd8c8' : '#ff5fa2'; c.beginPath(); c.arc(h.x, h.y, sel ? R + 3 : R, 0, Math.PI * 2); c.fill();
       c.strokeStyle = sel ? '#fff' : '#0a1020'; c.lineWidth = 2; c.stroke();
       if (!this.big) continue;
       c.fillStyle = '#0a1020'; c.font = '700 11px Mukta, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-      c.fillText(h.ev.length > 1 ? String(h.ev.length) : ad ? '₹' : '★', h.x, h.y + 0.5);
+      c.fillText(h.ev.length > 1 ? String(h.ev.length) : ad ? '₹' : story ? '✎' : '★', h.x, h.y + 0.5);
       c.textBaseline = 'alphabetic';
       if (k > 3 || h.ev.length === 1) {   // a label once zoomed in (or a lone pin)
         const t = h.ev.length > 1 ? `${h.ev.length} things on here` : e.title.length > 34 ? e.title.slice(0, 32) + '…' : e.title;
         c.font = '700 12px Mukta, sans-serif'; const w = c.measureText(t).width + 10;
-        c.fillStyle = 'rgba(10,16,32,.85)'; c.fillRect(h.x - w / 2, h.y - R - 22, w, 17); c.fillStyle = ad ? '#f2c230' : '#ffb0d0'; c.fillText(t, h.x, h.y - R - 9);
+        c.fillStyle = 'rgba(10,16,32,.85)'; c.fillRect(h.x - w / 2, h.y - R - 22, w, 17); c.fillStyle = ad ? '#f2c230' : story ? '#a8f0e6' : '#ffb0d0'; c.fillText(t, h.x, h.y - R - 9);
       }
     }
     for (const p of pins) {

@@ -18,6 +18,7 @@ import { Clock } from './systems/clock';
 import { Quests } from './systems/quests';
 import { Minimap } from './ui/minimap';
 import { loadEvents, EventCard } from './ui/events';
+import { buildPlaques } from './world/plaques';
 import { sfx, unlockAudio } from './systems/sfx';
 import { loadModels, rawModel } from './world/models';
 import { Boats } from './entities/boats';
@@ -168,7 +169,7 @@ async function start() {
     e => { map.close(); places2.onTravel({ name: e.where, x: e.x, z: e.z, note: '', seen: false }); },
     () => map.unzoom());
   map.onPick = e => (e ? evCard.show(e) : evCard.hide());
-  loadEvents(d).then(ev => { map.events = ev; });
+  loadEvents(d).then(ev => { map.events = ev; scene.add(buildPlaques(ev.filter(e => e.type === 'story'), (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z))); });
   document.getElementById('bWhat')!.addEventListener('click', e => {
     (e.currentTarget as HTMLElement).blur();
     if (!map.openEvents()) hud.whisper('Nothing on just now, baba. Check again in a few days!', 4);
