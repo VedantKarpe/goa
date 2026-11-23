@@ -38,7 +38,8 @@ export function facadeMaterial(map: THREE.Texture, night: { value: number }): TH
   const m = new THREE.MeshLambertMaterial({ vertexColors: true, map });
   m.onBeforeCompile = sh => {
     sh.uniforms.uNight = night;
-    sh.fragmentShader = 'uniform float uNight;\n' + sh.fragmentShader
+    sh.vertexShader = 'varying vec3 vWp2; varying vec3 vWn2;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvWp2 = (modelMatrix * vec4(transformed, 1.0)).xyz; vWn2 = normalize(mat3(modelMatrix) * objectNormal);');
+    sh.fragmentShader = 'uniform float uNight; varying vec3 vWp2; varying vec3 vWn2;\n' + sh.fragmentShader
       .replace('#include <map_fragment>', `
         vec4 fac = texture2D(map, vMapUv);
         diffuseColor.rgb = mix(diffuseColor.rgb, fac.rgb, fac.a);
@@ -46,6 +47,11 @@ export function facadeMaterial(map: THREE.Texture, night: { value: number }): TH
         vec2 cell = floor(vMapUv);
         float lit = step(0.45, fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453));
         float glass = fac.a * step(fac.r, 0.2) * step(0.001, vMapUv.y);
+        // terracotta roof slopes: rows of Mangalore tiles (courses at even heights, joints staggered row by row)
+        if (vWn2.y > 0.25 && vWn2.y < 0.97 && diffuseColor.r > diffuseColor.g * 1.5) {
+          float row = floor(vWp2.y * 2.6), fy = fract(vWp2.y * 2.6), fj = fract((vWp2.x + vWp2.z) * 1.4 + row * 0.5);
+          diffuseColor.rgb *= (fy < 0.2 ? 0.78 : 1.0 - 0.06 * fy) * (fj < 0.07 ? 0.88 : 1.0);
+        }
       `)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         totalEmissiveRadiance += vec3(1.0, 0.72, 0.38) * glass * lit * uNight * 1.6;`);
