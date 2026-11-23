@@ -23,7 +23,7 @@ function person(shirt: number): THREE.Group {
   const g = new THREE.Group(), m = (c: number) => new THREE.MeshLambertMaterial({ color: c });
   const add = (geo: THREE.BufferGeometry, c: number, y: number) => { const o = new THREE.Mesh(geo, m(c)); o.position.y = y; o.castShadow = true; g.add(o); };
   add(new THREE.CylinderGeometry(0.1, 0.12, 0.85, 6), 0x2b2b33, 0.42); add(new THREE.CylinderGeometry(0.22, 0.26, 0.75, 8), shirt, 1.2); add(new THREE.SphereGeometry(0.2, 10, 8), 0x8a5a3a, 1.8);
-  g.scale.setScalar(2.4); return g;
+  g.scale.setScalar(1.22); return g;   // 1.5 x life, like everyone else
 }
 function hen(): THREE.Group {
   const g = new THREE.Group(), m = (c: number) => new THREE.MeshLambertMaterial({ color: c });
@@ -146,8 +146,8 @@ export class Quests {
     if (!this.cur) {
       for (const q of this.waiting) {
         const o = new THREE.Group(); o.add(person([0xd0342c, 0xf2c230, 0x2f7fc1, 0x2c9a52][this.list.indexOf(q) % 4]));
-        const ex = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.5, 0.45), new THREE.MeshBasicMaterial({ color: 0xf2c230 })); ex.position.y = 7.2; o.add(ex);
-        const dot = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.45), new THREE.MeshBasicMaterial({ color: 0xf2c230 })); dot.position.y = 5.9; o.add(dot);
+        const ex = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.5, 0.45), new THREE.MeshBasicMaterial({ color: 0xf2c230 })); ex.position.y = 4.4; o.add(ex);
+        const dot = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.45), new THREE.MeshBasicMaterial({ color: 0xf2c230 })); dot.position.y = 3.3; o.add(dot);
         o.position.set(q.at!.x, this.g.heightAt(q.at!.x, q.at!.z) + 0.15, q.at!.z); o.userData.giver = true; this.marks.push(o); this.group.add(o);
       }
       return;

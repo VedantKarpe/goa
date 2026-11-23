@@ -432,7 +432,7 @@ async function start() {
       }
     }
     const gy = move.standY(px, pz);
-    const py = held ? held.y : drive.riding ? gy + 1.2 : traffic.riding ? traffic.riding.obj.position.y + 2.2 : bikes.riding ? gy + 1.3 : gy;
+    const py = held ? held.y : drive.riding ? gy + 1.2 : traffic.riding ? traffic.riding.obj.position.y + 2.2 : bikes.riding ? gy + 0.6 : gy;
     bikes.follow(px, gy + 0.15, pz, child.heading, performance.now() / 1000);
     child.obj.position.set(px, py, pz);
     const lampLit = st.lamp;   // the child's torch (L turns it off)
@@ -554,7 +554,7 @@ async function start() {
         quests.waiting.forEach((q, i) => add('q' + i, q.at!.x, q.at!.z, '!', 'Help', () => go(q.at!.x, q.at!.z, () => talk(q.at!)), 3.6));
         for (const p of people.list) if (p.phase !== 'home' && !quests.waiting.some(q => Math.hypot(q.at!.x - p.x, q.at!.z - p.z) < 3)) add('p' + p.c.name, p.x, p.z, '💬', p.c.name.split(' ')[0].replace(/^(Mrs?\.|Mr\.|Fr\.|Dr\.)$/, p.c.name.split(' ')[1] ?? ''), () => go(p.x, p.z, () => talk(p)), 3.2);
         for (const t of touts.list) add('t' + t.shop.name, t.x, t.z, '₹', 'Deals', () => go(t.x, t.z, () => talk(t)), 3.2);
-        for (const a of pets.list) if (a !== pets.mine) add('a' + a.hx + ',' + a.hz, a.x, a.z, '🍪', a.kind === 'dog' ? 'Feed' : 'Cat', () => go(a.x, a.z, () => talk(a)), 1.8);
+        for (const a of pets.list) if (a !== pets.mine) add('a' + a.hx + ',' + a.hz, a.x, a.z, '🍪', a.kind === 'dog' ? 'Feed' : 'Cat', () => go(a.x, a.z, () => talk(a)), 1.3);
         const car = drive.near(px, pz, 14); if (car) add('car', car.x, car.z, '🚗', 'Drive', () => go(car.x, car.z, () => lift()), 2.6);
       }
       list.sort((a, b) => a.d - b.d); bubbles.set(list.slice(0, 6));

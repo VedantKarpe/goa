@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { model } from '../world/models';
 
-export const CHILD_SCALE = 3.4;   // how much larger than life
+export const CHILD_SCALE = 1.5;   // how much larger than life (the same 1.5 as the people and vehicles: the child stands about 1.7 m)
 
 export class Child {
   readonly obj = new THREE.Group();

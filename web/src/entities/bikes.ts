@@ -27,7 +27,7 @@ function makeBike(kind: 'scooter' | 'cycle', col: number): THREE.Group {
     add(new THREE.BoxGeometry(0.28, 0.06, 0.15), 0x1d1d22, -0.35, 0.95);
     add(new THREE.CylinderGeometry(0.025, 0.025, 0.6, 5).rotateX(Math.PI / 2), 0x333333, 0.55, 1.0);
   }
-  g.scale.setScalar(2.2);   // larger than life, like the child
+  g.scale.setScalar(1.5);   // 1.5 x life, like the child and the cars
   return g;
 }
 

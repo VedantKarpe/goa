@@ -187,7 +187,7 @@ export class People {
     if (c.prop === 'camera') part(new THREE.BoxGeometry(0.12, 0.1, 0.16), mat(0x222222), 0.25, 1.35);
     if (c.prop === 'phone') part(new THREE.BoxGeometry(0.03, 0.12, 0.07), mat(0x222222), 0.05, 1.8, 0.2);
     if (c.prop === 'cane') part(new THREE.CylinderGeometry(0.02, 0.02, 1.0, 4), mat(0x5a3a2a), 0.25, 0.5, 0.2);
-    obj.scale.setScalar(c.kid ? 1.7 : 2.4);
+    obj.scale.setScalar(c.kid ? 0.86 : 1.22);   // 1.5 x life, like the child and the vehicles: an adult about 2.5 m, a kid about 1.8 m
     return { obj, legs };
   }
 

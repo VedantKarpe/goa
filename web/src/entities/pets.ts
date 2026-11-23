@@ -22,7 +22,7 @@ function tinted(g: THREE.BufferGeometry, hex: number) {
 
 /** One animal as a single merged mesh (one draw call), facing +x. */
 function animalGeo(kind: Kind, col: number, belly: number, lying: boolean): THREE.BufferGeometry {
-  const p: THREE.BufferGeometry[] = [], s = kind === 'dog' ? 1.4 : 0.8, legH = lying ? 0.06 : 0.42 * s, by = legH + 0.2 * s;
+  const p: THREE.BufferGeometry[] = [], s = kind === 'dog' ? 0.95 : 0.55, legH = lying ? 0.06 : 0.42 * s, by = legH + 0.2 * s;
   p.push(tinted(new THREE.BoxGeometry(0.85 * s, 0.34 * s, 0.32 * s).translate(0, by, 0), col));                               // body
   p.push(tinted(new THREE.BoxGeometry(0.6 * s, 0.1 * s, 0.26 * s).translate(0, by - 0.16 * s, 0), belly));                     // pale belly
   p.push(tinted(new THREE.BoxGeometry(0.3 * s, 0.28 * s, 0.26 * s).translate(0.5 * s, by + 0.18 * s, 0), col));                // head
