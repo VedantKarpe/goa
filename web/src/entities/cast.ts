@@ -17,6 +17,12 @@ export interface Cast {
 }
 
 export const CAST: Cast[] = [
+  { name: 'Shobha', job: 'fisherwoman on a scooter', outfit: 'sari', top: 0x1f8a8a, bottom: 0x1f8a8a, hair: 'bun', skin: 2, prop: 'basket', hint: 'chatty',
+    lines: ['Move, move, baba! Fish is melting in the sun, I have to reach the market by nine.', 'Bangdo, sungtam, kingfish: the catch today is good, men. Tell your mother.', 'My scooter is older than you, but she never stops. Only on Sundays she rests.'] },
+  { name: 'Mr. Gaonkar', job: 'postman', outfit: 'shirt', top: 0xc8a050, bottom: 0x6a5a3a, hair: 'cap', skin: 2, prop: 'bag', hint: 'precise',
+    lines: ['Thirty years delivering letters in Panjim. I know every house number, even the ones painted over.', 'Nobody writes letters now. Only bills and wedding cards. Still, I come.', 'Looking for some house? Tell me the name, I will tell you the lane.'] },
+  { name: 'Rocky', job: 'assistant director, film shoot', outfit: 'tee', top: 0x2b2b33, bottom: 0x3a4a6a, hair: 'black', skin: 1, prop: 'phone', hint: 'chatty',
+    lines: ['Shh! Shooting going on! ...Okay, cut. You want to be in the song? Just walk past and smile.', 'Bombay people always want "the Goa look". Old house, balcão, one bicycle. Every film, same shot.', 'Hero is still in the hotel. Two hours late. Typical.'] },
   { name: 'Mrs. Rosy Fernandes', job: 'fish seller', outfit: 'sari', top: 0x2a8a6a, bottom: 0x2a8a6a, hair: 'bun', skin: 1, prop: 'basket', hint: 'chatty',
     lines: ['Fresh bangdo, baba! Mackerel, still jumping. Tell your mother, no?', 'Aay deva, the tourists bargain like anything. Twenty rupees for a whole basket they want!', 'Kingfish today is too costly, men. Take the prawns.'] },
   { name: 'Lawrence the poder', job: 'baker', outfit: 'shirt', top: 0xf5f0e0, bottom: 0x5a4a3a, hair: 'cap', skin: 1, prop: 'basket', hint: 'kind',

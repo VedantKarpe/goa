@@ -6,6 +6,7 @@ import { DP } from './donapaulaLand';
 import { miramarBox } from './miramarBox';
 import { kingfisherAt } from './kingfisherSpot';
 import { iffiAt } from './iffi';
+import { oldGoaAt } from './oldgoaSpot';
 
 /** Miramar's sand (world tile centres): the base game uses it for the place pin and the beach cows. */
 export function beachSand(d: PanjimData): [number, number][] {
@@ -26,6 +27,8 @@ export function areas(d: PanjimData): AreaEntry[] {
   if (kf) out.push({ name: 'Kingfisher Villa', ...kf, r: 90, load: () => import('./kingfisher') });
   const ff = iffiAt(d);   // IFFI: the film festival's decorations round INOX (Panjim, every November)
   if (ff) out.push({ name: 'IFFI', ...ff, r: 340, load: () => import('./iffi') });
+  const og = oldGoaAt(d);   // Old Goa: only on a map that reaches it
+  if (og) out.push({ name: 'Old Goa', ...og.centre, r: 450, load: () => import('./oldgoa') });
   out.push({ name: 'Dona Paula', x: (DP.circle.x + DP.beach.x) / 2, z: (DP.circle.z + DP.view.z) / 2, r: 550, load: () => import('./donapaula') });
   return out;
 }

@@ -39,6 +39,7 @@ import { Cows } from './entities/cows';
 import { Rentals } from './entities/rentals';
 import { donaPaulaLand, shiftDP } from './areas/donapaulaLand';
 import { kingfisherAt, KF_R } from './areas/kingfisherSpot';
+import { oldGoaAt } from './areas/oldgoaSpot';
 import { buildShops, buildLoveSign } from './world/shops';
 import { AreaManager } from './areas/manager';
 import { areas, beachSand } from './areas/registry';
@@ -71,9 +72,13 @@ async function start() {
   const lmBox = d.lm.flatMap(l => l.at.map(([x, y]) => [x + l.cov[0], x + l.cov[1], y + l.cov[2], y + l.cov[3]]));
   const kf = kingfisherAt(d, roads.segs);   // the villa's grounds: its own model, not the map's plain boxes
   if (kf) d.places.push(['Kingfisher Villa', kf.x / T, kf.z / T]);
+  const og = oldGoaAt(d);   // Old Goa's churches: their own models, not the map's plain boxes
+  const ogSpots = og ? [og.bomJesus, og.se, og.assisi, og.arch] : [];
+  if (og && !d.places.some(p => p[0] === 'Old Goa')) d.places.push(['Old Goa', og.centre.x / T, og.centre.z / T]);
   const plain = { ...d, b: d.b.filter(([f]) => {
     let cx = 0, cy = 0; for (let i = 0; i < f.length; i += 2) { cx += f[i]; cy += f[i + 1]; } cx /= f.length / 2; cy /= f.length / 2;
     if (kf && Math.hypot(cx * T - kf.x, cy * T - kf.z) < KF_R + 5) return false;
+    if (ogSpots.some(o => Math.hypot(cx * T - o.x, cy * T - o.z) < o.r)) return false;
     return !lmBox.some(([x0, x1, y0, y1]) => cx > x0 && cx < x1 && cy > y0 && cy < y1);
   }) };
   const extra = infill(d, g, si); plain.b = plain.b.concat(extra);
