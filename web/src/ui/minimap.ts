@@ -62,7 +62,8 @@ export class Minimap {
   /** Back out to the whole map. */
   unzoom() { this.picked = null; if (this.view) this.zoom = { x: this.d.W / 2, y: this.d.H / 2, span: this.full() }; }
   /** Shut the big map. */
-  close() { this.big = false; this.cv.classList.remove('big'); this.zoom = this.view = null; this.picked = null; }
+  close() { this.big = false; this.cv.classList.remove('big'); this.zoom = this.view = null; this.picked = null; this.onPick(null); }
+  get isBig() { return this.big; }
   /** Open the big map zoomed to fit everything that is on (the What's on button). */
   openEvents() {
     if (!this.events.length) return false;

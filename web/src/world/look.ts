@@ -85,9 +85,9 @@ export class Look {
     this.size = [w, h, pr];
     // phones have 2-3 pixels per point: drawing at 1 made them blurry. Phones (no occlusion pass) get up to 2, other
     // screens up to 1.25; frames running slow lower `scale`
-    this.composer.setPixelRatio(Math.max(LIGHT ? 0 : Math.min(1, pr), Math.min(LIGHT ? 1.5 : 1.25, pr) * this.scale));   // a desktop never drops below its own pixels (blocky)
+    this.composer.setPixelRatio(Math.max(LIGHT ? 0 : Math.min(1, pr), Math.min(LIGHT ? 2 : 1.25, pr) * this.scale));   // a desktop never drops below its own pixels (blocky)
     this.composer.setSize(w, h);
-    if (this.paint) { const r = Math.max(LIGHT ? 0 : Math.min(1, pr), Math.min(LIGHT ? 1.5 : 1.25, pr) * this.scale); this.paint.uniforms.px.value.set(1 / (w * r), 1 / (h * r)); }
+    if (this.paint) { const r = Math.max(LIGHT ? 0 : Math.min(1, pr), Math.min(LIGHT ? 2 : 1.25, pr) * this.scale); this.paint.uniforms.px.value.set(1 / (w * r), 1 / (h * r)); }
   }
 
   /** Frames are running slow: give up the costliest effect still on (the occlusion first, then the glow). Returns false

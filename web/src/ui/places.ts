@@ -3,6 +3,7 @@
 // A place counts as discovered once the child has been near it.
 import * as THREE from 'three';
 import { T, type PanjimData, type Ground } from '../world/data';
+import { when, type GoaEvent } from './events';
 
 export interface Place { name: string; x: number; z: number; note: string; seen: boolean }
 
@@ -44,6 +45,12 @@ export class Places {
   private beam: THREE.Mesh;
   /** Take a pilot to a place (set by the game). */
   onTravel: (p: Place) => void = () => {};
+  /** What's on (events, stories, ads), listed above the places. */
+  events: GoaEvent[] = [];
+  /** Show one on the big map with its card. */
+  onShow: (e: GoaEvent) => void = () => {};
+  /** Where the child is (the list is sorted nearest first). */
+  here: () => [number, number] = () => [0, 0];
 
   constructor(d: PanjimData, private g: Ground, scene: THREE.Scene, private onPick: (p: Place) => void) {
     this.list = [
@@ -52,14 +59,25 @@ export class Places {
     ];
     this.beam = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 120, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0x9fe8d6, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide }));
     this.beam.visible = false; scene.add(this.beam);
-    document.getElementById('bPlaces')!.addEventListener('click', e => { (e.currentTarget as HTMLElement).blur(); this.toggle(); });
+
   }
 
   toggle() {
     const open = this.panel.classList.toggle('open');
     if (!open) return;
-    const row = (p: Place, i: number) => `<div class="prow" style="display:flex;gap:6px;align-items:stretch"><button data-i="${i}" class="${p === this.target ? 'on' : ''}" style="flex:1 1 auto"><b>${p.seen ? p.name : p.name + ' <em>· not yet visited</em>'}</b><span>${p.note}</span></button><button data-go="${i}" title="Take a pilot there" style="flex:0 0 64px;font-weight:700">Go ›</button></div>`;
-    this.panel.innerHTML = `<div class="ph"><h2>Places in Panjim</h2><span>${this.list.filter(p => p.seen).length} of ${this.list.length} visited · pick one to be guided there, or Go to take a pilot</span><button class="x" aria-label="Close">✕</button></div><div class="pl">${this.list.map(row).join('')}</div>`;
+    const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+    const [hx, hz] = this.here(), far = (x: number, z: number) => { const m = Math.hypot(x - hx, z - hz); return m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`; };
+    const ICON = { event: '★', ad: '₹', story: '✎' }, COL = { event: '#ff5fa2', ad: '#f2c230', story: '#5fd8c8' };
+    const evRow = (e: GoaEvent, i: number) => `<div class="prow" style="display:flex;gap:6px;align-items:stretch"><button data-ev="${i}" style="flex:1 1 auto"><b><span style="color:${COL[e.type]}">${ICON[e.type]}</span> ${esc(e.title)}</b><em>${esc(when(e))} · ${esc(e.where)} · ${far(e.x, e.z)}</em><span>${esc(e.blurb)}</span></button><div style="display:flex;flex-direction:column;gap:4px;flex:0 0 64px"><button data-evg="${i}" style="font-weight:700;text-align:center;padding:4px">Guide</button><button data-evt="${i}" style="font-weight:700;text-align:center;padding:4px;color:var(--lamp)">Go ›</button></div></div>`;
+    const row = (p: Place, i: number) => `<div class="prow" style="display:flex;gap:6px;align-items:stretch"><button data-i="${i}" class="${p === this.target ? 'on' : ''}" style="flex:1 1 auto"><b>${p.name}</b><em>${far(p.x, p.z)}${p.seen ? '' : ' · not yet visited'}</em><span>${p.note}</span></button><button data-go="${i}" title="Take a pilot there" style="flex:0 0 64px;font-weight:700">Go ›</button></div>`;
+    const order = this.list.map((p, i) => [Math.hypot(p.x - hx, p.z - hz), i] as [number, number]).sort((a, b) => a[0] - b[0]).map(q => q[1]);   // nearest first
+    this.panel.innerHTML = `<div class="ph"><h2>What's on in Goa</h2><span>Tap one to see it on the map · Guide to follow the green light · Go to take a pilot</span><button class="x" aria-label="Close">✕</button></div>`
+      + `<div class="pl">${this.events.length ? `<div class="sec">On now &amp; coming up</div>${this.events.map(evRow).join('')}` : ''}`
+      + `<div class="sec">Places · ${this.list.filter(p => p.seen).length} of ${this.list.length} visited</div>${order.map(i => row(this.list[i], i)).join('')}</div>`;
+    const close = () => this.panel.classList.remove('open');
+    this.panel.querySelectorAll<HTMLButtonElement>('button[data-ev]').forEach(b => b.addEventListener('click', () => { close(); this.onShow(this.events[+b.dataset.ev!]); }));
+    this.panel.querySelectorAll<HTMLButtonElement>('button[data-evg]').forEach(b => b.addEventListener('click', () => { const e = this.events[+b.dataset.evg!]; close(); this.target = { name: e.title, x: e.x, z: e.z, note: '', seen: false }; this.onPick(this.target); }));
+    this.panel.querySelectorAll<HTMLButtonElement>('button[data-evt]').forEach(b => b.addEventListener('click', () => { const e = this.events[+b.dataset.evt!]; close(); this.onTravel({ name: e.where, x: e.x, z: e.z, note: '', seen: false }); }));
     this.panel.querySelector('.x')!.addEventListener('click', () => this.panel.classList.remove('open'));
     this.panel.querySelectorAll<HTMLButtonElement>('.pl button[data-go]').forEach(b => b.addEventListener('click', () => {
       this.panel.classList.remove('open'); this.onTravel(this.list[+b.dataset.go!]);

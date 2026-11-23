@@ -177,12 +177,15 @@ async function start() {
     e => { map.close(); places2.onTravel({ name: e.where, x: e.x, z: e.z, note: '', seen: false }); },
     () => map.unzoom());
   map.onPick = e => (e ? evCard.show(e) : evCard.hide());
-  loadEvents(d).then(ev => { map.events = ev; scene.add(buildPlaques(ev.filter(e => e.type === 'story'), (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z))); });
+  loadEvents(d).then(ev => { map.events = ev; places2.events = [...ev].sort((a, b) => (a.type === 'event' ? (a.on ? 0 : 1) : a.type === 'story' ? 2 : 3) - (b.type === 'event' ? (b.on ? 0 : 1) : b.type === 'story' ? 2 : 3)); scene.add(buildPlaques(ev.filter(e => e.type === 'story'), (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z))); });
   setupShare(document.getElementById('bShare')!);
-  document.getElementById('bWhat')!.addEventListener('click', e => {
-    (e.currentTarget as HTMLElement).blur();
-    if (!map.openEvents()) hud.whisper('Nothing on just now, baba. Check again in a few days!', 4);
-  });
+  // What's on: one list of what is happening (events, stories, ads) and the places, nearest first
+  places2.here = () => [px, pz];
+  places2.onShow = e => { map.openOn(e); evCard.show(e); };
+  document.getElementById('bWhat')!.addEventListener('click', e => { (e.currentTarget as HTMLElement).blur(); places2.toggle(); });
+  // the big map has its own close button (tapping it was the only way out before)
+  const mapX = document.getElementById('mapX')!; mapX.addEventListener('click', () => map.close());
+  setInterval(() => { mapX.style.display = map.isBig ? 'block' : 'none'; }, 200);
   const pets = new Pets(net, (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z) && !si.at(x, z)); scene.add(pets.group);
   const drive = new Drive(net, (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z), streetLife.parked); scene.add(drive.group);
   const boats = new Boats(g, d.casinos ?? []); scene.add(boats.group);
@@ -324,8 +327,16 @@ async function start() {
       px = held.x; pz = held.z; child.heading = held.heading;
     } else if (drive.riding) {
       // driving: up/down is the accelerator and brake, left/right steers; the camera swings round behind
-      const m = input.move();
-      drive.update(dt, -m.y, m.x, (x, z, dx, dz) => move.step(x, z, dx, dz), (x, z) => move.standY(x, z));
+      const m = input.move(), mag = Math.min(1, Math.hypot(m.x, m.y));
+      let thr = 0, steer = 0;
+      if (mag > 0.15) {
+        // the way the player points, on the ground, against the way the car faces
+        const w = rig.screenToGround(m.x, m.y), want = Math.atan2(w.z, w.x), h = drive.riding.h;
+        const diff = Math.atan2(Math.sin(want - h), Math.cos(want - h));
+        if (Math.abs(diff) < 2.3) { thr = mag; steer = Math.max(-1, Math.min(1, diff * 1.8)); }   // ahead or to a side: go and turn
+        else { thr = -mag; steer = 0; }                                                              // straight back: brake, then reverse
+      }
+      drive.update(dt, thr, steer, (x, z, dx, dz) => move.step(x, z, dx, dz), (x, z) => move.standY(x, z));
       px = drive.riding.x; pz = drive.riding.z; child.heading = drive.riding.h; rig.chase(drive.riding.h, dt);
     } else if (traffic.riding) {
       // riding: the child sits on the vehicle
@@ -466,7 +477,7 @@ async function start() {
   (window as unknown as { rkFrame: (dt: number) => void }).rkFrame = frame;   // for tests: run one frame by hand
   // adaptive resolution: draw fewer pixels when frames run slow, more when there is room, so it stays smooth
   let pr = renderer.getPixelRatio(), slow = 0, fast = 0;
-  const maxPR = LIGHT ? Math.min(1.5, devicePixelRatio) : Math.min(2, Math.max(1.5, devicePixelRatio)), minPR = Math.min(1.25, devicePixelRatio);   // never so low it looks blurry
+  const maxPR = LIGHT ? Math.min(2, devicePixelRatio) : Math.min(2, Math.max(1.5, devicePixelRatio)), minPR = Math.min(1.25, devicePixelRatio);   // never so low it looks blurry
   // phones: 30 frames a second is smooth enough here and runs the GPU half as hard (they were getting hot)
   let acc = 0;
   renderer.setAnimationLoop(() => {

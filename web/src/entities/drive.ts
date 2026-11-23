@@ -76,14 +76,14 @@ export class Drive {
    *  collisions (as walking does); `standY` is the ground or the bridge deck under the car. */
   update(dt: number, throttle: number, steer: number, step: (x: number, z: number, dx: number, dz: number) => [number, number], standY: (x: number, z: number) => number) {
     const c = this.riding; if (!c) return;
-    const MAX = 24, REV = -7;                                   // about 85 km/h forward
-    if (throttle > 0) this.v += (this.v < 0 ? 18 : 7.5) * throttle * dt;
+    const MAX = 34, REV = -8;                                   // about 120 km/h forward
+    if (throttle > 0) this.v += (this.v < 0 ? 22 : 13) * throttle * dt;
     else if (throttle < 0) this.v += (this.v > 0 ? -16 : -5) * -throttle * dt;
     else this.v -= Math.sign(this.v) * Math.min(Math.abs(this.v), 3.5 * dt);   // rolling to a stop
     this.v = Math.max(REV, Math.min(MAX, this.v));
     // steering bites harder at low speed, gentler when fast (a car, not a bicycle)
-    const grip = Math.min(1, Math.abs(this.v) / 5) * (1 - Math.min(0.55, Math.abs(this.v) / 50));
-    c.h += steer * 1.9 * grip * Math.sign(this.v || 1) * dt;
+    const grip = Math.min(1, Math.abs(this.v) / 3) * (1 - Math.min(0.35, Math.abs(this.v) / 90));
+    c.h += steer * 2.6 * grip * Math.sign(this.v || 1) * dt;
     const dx = Math.cos(c.h) * this.v * dt, dz = Math.sin(c.h) * this.v * dt;
     const [nx, nz] = step(c.x, c.z, dx, dz);
     const moved = Math.hypot(nx - c.x, nz - c.z), want = Math.hypot(dx, dz);
