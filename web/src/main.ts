@@ -21,6 +21,7 @@ import { loadEvents, EventCard } from './ui/events';
 import { buildPlaques } from './world/plaques';
 import { setupShare } from './ui/share';
 import { Drive } from './entities/drive';
+import { Pets } from './entities/pets';
 import { sfx, unlockAudio } from './systems/sfx';
 import { loadModels, rawModel } from './world/models';
 import { Boats } from './entities/boats';
@@ -182,6 +183,7 @@ async function start() {
     (e.currentTarget as HTMLElement).blur();
     if (!map.openEvents()) hud.whisper('Nothing on just now, baba. Check again in a few days!', 4);
   });
+  const pets = new Pets(net, (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z) && !si.at(x, z)); scene.add(pets.group);
   const drive = new Drive(net, (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z)); scene.add(drive.group);
   const boats = new Boats(g, d.casinos ?? []); scene.add(boats.group);
   const pumps = new Pumps(net, g, (x, z) => !bi.solid(x, z, 9) && !g.isWet(x, z) && !si.at(x, z)); scene.add(pumps.group);
@@ -192,11 +194,12 @@ async function start() {
   const talk = () => {
     const said = areaMgr.talk(px, pz); if (said) { hud.whisper(said, 9, true); return; }
     const giver = quests.giverNear(px, pz); if (giver) { hud.whisper(quests.accept(giver), 10, true); sfx.pick(); return; }   // tasks start only when you ask
+    const pet = pets.near(px, pz, 2.5) ?? (people.near(px, pz) ? null : pets.near(px, pz)); if (pet) { const m = pets.feed(pet); hud.whisper(m, 7, true); if (pets.mine === pet && pet.fed === 3) { sfx.done(); sfx.bark(); } else sfx.pick(); return; }
     const p = people.near(px, pz);
     hud.whisper(p ? people.talk(px, pz, quests.target) : 'Nobody here to ask, baba. Go near someone and ask.');
   };
   const lift = () => {
-    if (drive.riding) { const o = drive.park(); if (o && move.free(o.x, o.z)) { px = o.x; pz = o.z; } child.obj.visible = true; hud.whisper('Parked. Pull the handbrake, baba, this is Goa, everything rolls downhill.', 3); return; }
+    if (drive.riding) { const o = drive.park(); if (o && move.free(o.x, o.z)) { px = o.x; pz = o.z; } child.obj.visible = true; pets.hopOut(px, pz); hud.whisper('Parked. Pull the handbrake, baba, this is Goa, everything rolls downhill.', 3); return; }
     const car = traffic.riding || bikes.riding ? null : drive.near(px, pz);
     if (car) { drive.enter(car); rig.driveView(); child.obj.visible = false; hud.whisper(car.taxi ? 'Taxi uncle is having tea, he says take it, bring it back full tank! W to go, S to brake, A/D to steer, H to honk.' : 'Keys in the ignition! W to go, S to brake, A/D to steer, H to honk. Drive slow, no?', 6); return; }
     if (bikes.riding) { bikes.park(px, pz); hud.whisper('Parked. Lock it, no? Somebody will take it otherwise.', 2); return; }
@@ -255,7 +258,7 @@ async function start() {
   card.addEventListener('click', () => { card.style.display = 'none'; cardT = 0; });
   const clock = new THREE.Clock();
   let mapT = 0, shopT = 0, cowSaid = false, cullT = 0;
-  const smallStuff = [bikes.group, cows.group, pumps.group, traffic.group, drive.group];   // (people show and hide themselves)
+  const smallStuff = [bikes.group, cows.group, pumps.group, traffic.group, drive.group, pets.group];   // (people show and hide themselves)
   const shopTag = document.createElement('div'); shopTag.id = 'shopTag'; document.body.appendChild(shopTag);
   shopTag.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#7a1e1ee6;color:#fff4d8;font:600 14px Georgia,serif;padding:4px 12px;border-radius:6px;border:2px solid #f2c230;display:none;pointer-events:none;z-index:5';
   (window as unknown as { rk: unknown }).rk = { look, rentals, areaMgr, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
@@ -347,6 +350,7 @@ async function start() {
     const hit = traffic.update(dt, px, pz, night);
     if (hit && !traffic.riding && !drive.riding) { knockX = hit.kx; knockZ = hit.kz; hurtT = 0.6; }
     people.update(dt, day.min, px, pz);
+    { const c = rentals.closest(px, pz); pets.update(dt, px, pz, input.has('shift'), !!(drive.riding || traffic.riding || bikes.riding), c ? c.d : 1e9, sfx.bark); }
     // the rental cars: hit by one and you lose (safe while riding a pilot or the bus)
     if (rentals.update(dt, px, pz, night, !!traffic.riding)) {
       sfx.crash(); rentals.clearNear(px, pz); st.points = Math.max(0, st.points - 25); if (drive.riding) { drive.park(); child.obj.visible = true; }

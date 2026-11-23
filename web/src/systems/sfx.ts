@@ -24,5 +24,6 @@ export const sfx = {
   done: () => { [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.3, 'triangle', 0.07, 0, i * 0.1)); },
   banish: () => { tone(300, 0.5, 'sine', 0.1, 900); },
   spirit: () => { [220, 277, 330, 440].forEach(f => tone(f, 2.2, 'sine', 0.05)); },
+  bark: () => { tone(460, 0.09, 'square', 0.04, -180); tone(440, 0.1, 'square', 0.04, -170, 0.16); },
   hurt: () => { tone(160, 0.25, 'sawtooth', 0.05, -60); },
 };
