@@ -39,7 +39,10 @@ export class Minimap {
     this.fogCan = document.createElement('canvas'); this.fogCan.width = d.W; this.fogCan.height = d.H;
     this.fogImg = this.fogCan.getContext('2d')!.createImageData(d.W, d.H);
     this.cv = document.getElementById('map') as HTMLCanvasElement;
+    let lastTouch = 0;
+    this.cv.addEventListener('pointerup', e => { if (e.pointerType === 'mouse') return; lastTouch = performance.now(); e.preventDefault(); this.cv.dispatchEvent(new MouseEvent('click', { clientX: e.clientX, clientY: e.clientY })); lastTouch = performance.now(); });
     this.cv.addEventListener('click', e => {
+      if (e.isTrusted && performance.now() - lastTouch < 600) return;   // the browser's own click after a touch we already handled
       if (this.big) {
         const r = this.cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
         let hit: typeof this.hits[0] | null = null, bd = 22;

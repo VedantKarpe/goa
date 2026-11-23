@@ -98,7 +98,12 @@
     .btns { flex-direction: column; right: 6px; bottom: 70px; gap: 6px; }
     .btns button { width: 38px; height: 38px; font-size: 14px; }
     #bHome, #bTiltD, #bTiltU { display: none; }
-    #say { font-size: 14.5px !important; padding: 8px 12px !important; }
+    #say { font-size: 14.5px !important; padding: 8px 12px !important; top: auto !important; bottom: 70px !important; left: 8px !important; right: 54px !important; }
+    #stats { background: rgba(10,16,32,.72); padding: 3px 10px; border-radius: 999px; top: 10px; left: 8px; }
+    #objective { top: 44px !important; left: 8px !important; width: calc(100vw - 156px); max-width: none !important; box-sizing: border-box; font-size: 12.5px !important; line-height: 1.3; }
+    #map { z-index: 6; touch-action: manipulation; }
+    #town { z-index: 6; }
+    .btns { bottom: 160px; }
   }
 </style>
   <div id="loading">Loading Goa…</div>
