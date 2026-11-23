@@ -20,6 +20,7 @@ import { Minimap } from './ui/minimap';
 import { loadEvents, EventCard } from './ui/events';
 import { buildPlaques } from './world/plaques';
 import { setupShare } from './ui/share';
+import { Drive } from './entities/drive';
 import { sfx, unlockAudio } from './systems/sfx';
 import { loadModels, rawModel } from './world/models';
 import { Boats } from './entities/boats';
@@ -176,6 +177,7 @@ async function start() {
     (e.currentTarget as HTMLElement).blur();
     if (!map.openEvents()) hud.whisper('Nothing on just now, baba. Check again in a few days!', 4);
   });
+  const drive = new Drive(net, (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z)); scene.add(drive.group);
   const boats = new Boats(g, d.casinos ?? []); scene.add(boats.group);
   const pumps = new Pumps(net, g, (x, z) => !bi.solid(x, z, 9) && !g.isWet(x, z) && !si.at(x, z)); scene.add(pumps.group);
 
@@ -189,6 +191,9 @@ async function start() {
     hud.whisper(p ? people.talk(px, pz, quests.target) : 'Nobody here to ask, baba. Go near someone and ask.');
   };
   const lift = () => {
+    if (drive.riding) { const o = drive.park(); if (o && move.free(o.x, o.z)) { px = o.x; pz = o.z; } child.obj.visible = true; hud.whisper('Parked. Pull the handbrake, baba, this is Goa, everything rolls downhill.', 3); return; }
+    const car = traffic.riding || bikes.riding ? null : drive.near(px, pz);
+    if (car) { drive.enter(car); rig.driveView(); child.obj.visible = false; hud.whisper(car.taxi ? 'Taxi uncle is having tea, he says take it, bring it back full tank! W to go, S to brake, A/D to steer, H to honk.' : 'Keys in the ignition! W to go, S to brake, A/D to steer, H to honk. Drive slow, no?', 6); return; }
     if (bikes.riding) { bikes.park(px, pz); hud.whisper('Parked. Lock it, no? Somebody will take it otherwise.', 2); return; }
     const bk = traffic.riding ? null : bikes.near(px, pz);
     if (bk) { bikes.mount(bk); hud.whisper(bk.kind === 'scooter' ? 'Vroom! Keys were in it only. Go slow near the church, men.' : 'Tring tring! Pedal, baba, pedal!', 3); return; }
@@ -206,6 +211,7 @@ async function start() {
     if (k === 'p') places2.toggle();
     if (k === '0' || k === 'home') rig.reset();
     if (k === 'm') document.getElementById('map')!.click();
+    if (k === 'h' && drive.riding) sfx.honk();
   };
   addEventListener('pointerdown', unlockAudio);
   traffic.onEvent = (kind, text) => {
@@ -244,7 +250,7 @@ async function start() {
   card.addEventListener('click', () => { card.style.display = 'none'; cardT = 0; });
   const clock = new THREE.Clock();
   let mapT = 0, shopT = 0, cowSaid = false, cullT = 0;
-  const smallStuff = [bikes.group, cows.group, pumps.group, traffic.group];   // (people show and hide themselves)
+  const smallStuff = [bikes.group, cows.group, pumps.group, traffic.group, drive.group];   // (people show and hide themselves)
   const shopTag = document.createElement('div'); shopTag.id = 'shopTag'; document.body.appendChild(shopTag);
   shopTag.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#7a1e1ee6;color:#fff4d8;font:600 14px Georgia,serif;padding:4px 12px;border-radius:6px;border:2px solid #f2c230;display:none;pointer-events:none;z-index:5';
   (window as unknown as { rk: unknown }).rk = { look, rentals, areaMgr, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
@@ -276,7 +282,7 @@ async function start() {
     if (!move.free(x, z)) { hud.whisper(`The pilot can't find a way to ${p.name}, men.`, 3); return; }
     hud.whisper(`Waiting for a pilot to ${p.name}...`, 3, true);
     await areaMgr.ready(x, z);
-    if (traffic.riding) traffic.hopOff(); if (bikes.riding) bikes.park(px, pz);
+    if (traffic.riding) traffic.hopOff(); if (bikes.riding) bikes.park(px, pz); if (drive.riding) { drive.park(); child.obj.visible = true; }
     px = x; pz = z; day.min = Math.min(day.min + 10, 1439);   // the ride takes ten minutes
     hud.whisper(`The pilot drops you at ${p.name}. "Thirty rupees, baba. Okay okay, for you twenty." ${p.note}`, 6, true);
   };
@@ -292,6 +298,11 @@ async function start() {
       if (bikes.riding) bikes.park(px, pz);
       if (traffic.riding) traffic.hopOff();
       px = held.x; pz = held.z; child.heading = held.heading;
+    } else if (drive.riding) {
+      // driving: up/down is the accelerator and brake, left/right steers; the camera swings round behind
+      const m = input.move();
+      drive.update(dt, -m.y, m.x, (x, z, dx, dz) => move.step(x, z, dx, dz), (x, z) => move.standY(x, z));
+      px = drive.riding.x; pz = drive.riding.z; child.heading = drive.riding.h; rig.chase(drive.riding.h, dt);
     } else if (traffic.riding) {
       // riding: the child sits on the vehicle
       const v = traffic.riding; px = v.x; pz = v.z; child.heading = Math.atan2(v.hz, v.hx);
@@ -316,7 +327,7 @@ async function start() {
       }
     }
     const gy = move.standY(px, pz);
-    const py = held ? held.y : traffic.riding ? traffic.riding.obj.position.y + 2.2 : bikes.riding ? gy + 1.3 : gy;
+    const py = held ? held.y : drive.riding ? gy + 1.2 : traffic.riding ? traffic.riding.obj.position.y + 2.2 : bikes.riding ? gy + 1.3 : gy;
     bikes.follow(px, gy + 0.15, pz, child.heading, performance.now() / 1000);
     child.obj.position.set(px, py, pz);
     const lampLit = st.lamp;   // the child's torch (L turns it off)
@@ -329,11 +340,11 @@ async function start() {
     signals.update(dt);
     waterTime.value += dt;
     const hit = traffic.update(dt, px, pz, night);
-    if (hit && !traffic.riding) { knockX = hit.kx; knockZ = hit.kz; hurtT = 0.6; }
+    if (hit && !traffic.riding && !drive.riding) { knockX = hit.kx; knockZ = hit.kz; hurtT = 0.6; }
     people.update(dt, day.min, px, pz);
     // the rental cars: hit by one and you lose (safe while riding a pilot or the bus)
     if (rentals.update(dt, px, pz, night, !!traffic.riding)) {
-      sfx.crash(); rentals.clearNear(px, pz); st.points = Math.max(0, st.points - 25);
+      sfx.crash(); rentals.clearNear(px, pz); st.points = Math.max(0, st.points - 25); if (drive.riding) { drive.park(); child.obj.visible = true; }
       if (bikes.riding) bikes.park(px, pz);
       const spots = d.places.filter(q => STARTS.includes(q[0])), q = spots[Math.floor(Math.random() * spots.length)];
       let x = q[1] * T, z = q[2] * T; for (let r = 0; r < 300 && !move.free(x, z); r += 3) { x = q[1] * T + Math.cos(r) * r; z = q[2] * T + Math.sin(r) * r; }
@@ -422,7 +433,7 @@ async function start() {
     look.render();
     const t = quests.target;
     const hint = t && quests.cur?.kind !== 'collect' ? `${Math.round(Math.hypot(t.x - px, t.z - pz) / 10) * 10} m` : '';
-    hud.update(dt, renderer, { points: st.points, time: day.label + (night ? ' · night' : ''), placeName: nd < 400 ? near : '', objective: quests.objective, riding: !!traffic.riding, hint });
+    hud.update(dt, renderer, { points: st.points, time: day.label + (night ? ' · night' : ''), placeName: nd < 400 ? near : '', objective: quests.objective, riding: !!traffic.riding || !!drive.riding, hint });
   };
   (window as unknown as { rkFrame: (dt: number) => void }).rkFrame = frame;   // for tests: run one frame by hand
   // adaptive resolution: draw fewer pixels when frames run slow, more when there is room, so it stays smooth

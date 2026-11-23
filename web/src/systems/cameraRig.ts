@@ -15,6 +15,10 @@ export class CameraRig {
   constructor() { this.camera = new THREE.PerspectiveCamera(this.FOV, 1, 1, 6000); }
 
   turn(radians: number) { this.yawTarget += radians; }
+  /** Driving: a chase view, close behind and a little above the car. */
+  driveView() { this.spanTarget = 55; this.tiltTarget = 0.55; }
+  /** Driving: swing round behind a car heading `h` (radians, along +x at 0), unhurried. */
+  chase(h: number, dt: number) { const d = Math.atan2(Math.sin(h + Math.PI - this.yawTarget), Math.cos(h + Math.PI - this.yawTarget)); this.yawTarget += d * Math.min(1, dt * 2.2); }
   /** Back to the default zoom and tilt (the direction stays). */
   reset() { this.spanTarget = CameraRig.SPAN; this.tiltTarget = CameraRig.TILT; }
   zoom(steps: number) { this.spanTarget = Math.max(30, Math.min(600, this.spanTarget * Math.pow(0.87, steps))); }
