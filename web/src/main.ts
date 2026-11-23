@@ -19,6 +19,7 @@ import { Quests } from './systems/quests';
 import { Minimap } from './ui/minimap';
 import { loadEvents, EventCard } from './ui/events';
 import { buildPlaques } from './world/plaques';
+import { setupShare } from './ui/share';
 import { sfx, unlockAudio } from './systems/sfx';
 import { loadModels, rawModel } from './world/models';
 import { Boats } from './entities/boats';
@@ -170,6 +171,7 @@ async function start() {
     () => map.unzoom());
   map.onPick = e => (e ? evCard.show(e) : evCard.hide());
   loadEvents(d).then(ev => { map.events = ev; scene.add(buildPlaques(ev.filter(e => e.type === 'story'), (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z))); });
+  setupShare(document.getElementById('bShare')!);
   document.getElementById('bWhat')!.addEventListener('click', e => {
     (e.currentTarget as HTMLElement).blur();
     if (!map.openEvents()) hud.whisper('Nothing on just now, baba. Check again in a few days!', 4);
