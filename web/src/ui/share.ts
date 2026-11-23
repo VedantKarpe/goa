@@ -2,7 +2,7 @@
 // posted from the game: they send it to us, we read it, and the ones we add get a pin, a plaque and one day a quest.
 
 /** Where people send their stories (an Instagram handle, without the @). Empty: the panel says to DM the page. */
-export const SHARE_IG = '';
+export const SHARE_IG = 'goabuilder';
 
 export function setupShare(button: HTMLElement) {
   const el = document.createElement('div'); el.id = 'share';
@@ -20,7 +20,7 @@ export function setupShare(button: HTMLElement) {
       <li>Your name (as you'd like it shown) and a link, if you have one</li>
     </ul>
     <div style="color:#9a9484;font-size:13px;margin-bottom:12px">We read every story ourselves before anything goes up. Ads and events are welcome too.</div>
-    ${ig ? `<a href="${ig}" target="_blank" rel="noopener" style="display:inline-block;font:700 15px Mukta,sans-serif;color:#0a1020;background:#5fd8c8;border-radius:999px;padding:8px 18px;text-decoration:none">Message us on Instagram ↗</a>`
+    ${ig ? `<a href="${ig}" target="_blank" rel="noopener" style="display:inline-block;font:700 15px Mukta,sans-serif;color:#0a1020;background:#5fd8c8;border-radius:999px;padding:8px 18px;text-decoration:none">Message @goabuilder on Instagram ↗</a>`
          : `<div style="font-weight:700;color:#f2b441">Please DM us on Instagram.</div>`}`;
   document.body.appendChild(el);
   const close = () => { el.style.display = 'none'; };
