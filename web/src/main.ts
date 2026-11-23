@@ -199,7 +199,12 @@ async function start() {
   places2.onShow = e => { map.openOn(e); evCard.show(e); };
   places2.onFocus = (x, z) => { evCard.hide(); map.focus(x, z); };
   places2.onHide = () => closeWhats();
-  map.onOpen = () => openWhats(); map.onClose = () => closeWhats();
+  map.onOpen = () => { if (!whats) map.focus(px, pz, 110); }; map.onClose = () => closeWhats();
+  // which town the child is in: the nearest of the towns on the map
+  const TOWNS: Record<string, string> = { 'Panaji': 'Panjim', 'Church Square': 'Panjim', 'Fontainhas': 'Panjim', 'Panjim Bazaar': 'Panjim', 'Campal': 'Panjim', 'Altinho': 'Panjim', 'Patto': 'Panjim', 'Miramar': 'Miramar', 'Caranzalem': 'Caranzalem', 'Dona Paula': 'Dona Paula', 'Taleigao': 'Taleigao', 'Goa University': 'Taleigao', 'Old Goa': 'Old Goa', 'Sinquerim': 'Sinquerim', 'Fort Aguada': 'Sinquerim', 'Kingfisher Villa': 'Sinquerim', 'Ribandar': 'Ribandar', 'Betim': 'Betim', 'Porvorim': 'Porvorim' };
+  const townAnchors = d.places.filter(q => TOWNS[q[0]]).map(q => ({ t: TOWNS[q[0]], x: q[1] * T, z: q[2] * T }));
+  const townEl = document.getElementById('town')!;
+  setInterval(() => { let best = '', bd = 1e9; for (const a of townAnchors) { const dd = Math.hypot(a.x - px, a.z - pz); if (dd < bd) { bd = dd; best = a.t; } } if (bd > 2500) best = 'Goa'; map.town = best; if (townEl.textContent !== best) townEl.textContent = best; }, 1000);
   document.getElementById('bWhat')!.addEventListener('click', e => { (e.currentTarget as HTMLElement).blur(); if (whats) closeWhats(); else openWhats(); });
   const mapX = document.getElementById('mapX')!; mapX.addEventListener('click', () => closeWhats());
   setInterval(() => { mapX.style.display = map.isBig && !whats ? 'block' : 'none'; }, 200);
@@ -220,7 +225,7 @@ async function start() {
     hud.whisper(p ? people.talk(px, pz, quests.target) : 'Nobody here to ask, baba. Go near someone and ask.');
   };
   const lift = () => {
-    if (drive.riding) { const o = drive.park(); if (o && move.free(o.x, o.z)) { px = o.x; pz = o.z; } child.obj.visible = true; pets.hopOut(px, pz); hud.whisper('Parked. Pull the handbrake, baba, this is Goa, everything rolls downhill.', 3); return; }
+    if (drive.riding) { drive.lights(0); const o = drive.park(); if (o && move.free(o.x, o.z)) { px = o.x; pz = o.z; } child.obj.visible = true; pets.hopOut(px, pz); hud.whisper('Parked. Pull the handbrake, baba, this is Goa, everything rolls downhill.', 3); return; }
     const car = traffic.riding || bikes.riding ? null : drive.near(px, pz);
     if (car) { const cc = drive.enter(car); rig.driveView(); child.obj.visible = false; hud.whisper(cc.taxi ? 'Taxi uncle is having tea, he says take it, bring it back full tank! W to go, S to brake, A/D to steer, H to honk.' : 'Keys in the ignition! W to go, S to brake, A/D to steer, H to honk. Drive slow, no?', 6); return; }
     if (bikes.riding) { bikes.park(px, pz); hud.whisper('Parked. Lock it, no? Somebody will take it otherwise.', 2); return; }
@@ -356,6 +361,7 @@ async function start() {
       }
       drive.update(dt, thr, steer, (x, z, dx, dz) => move.step(x, z, dx, dz), (x, z) => move.standY(x, z));
       px = drive.riding.x; pz = drive.riding.z; child.heading = drive.riding.h; rig.chase(drive.riding.h, dt);
+      drive.lights(day.dark);
     } else if (traffic.riding) {
       // riding: the child sits on the vehicle
       const v = traffic.riding; px = v.x; pz = v.z; child.heading = Math.atan2(v.hz, v.hx);
@@ -482,7 +488,7 @@ async function start() {
       cullT = 0.3;
       areaMgr.refresh(px, pz);
       const far = fog.far + 150, near = 320;
-      cullInstances(LIGHT ? 380 : 520);
+      cullInstances(LIGHT ? 380 : 520); map.loadedR = far;
       cullChunks(blds.group, px, pz, far); cullChunks(streetLife.group, px, pz, Math.min(far, NEW_LOOK ? 600 : far)); cullChunks(terrain, px, pz, far + 100);   // building squares beyond the haze
       const treeFar = NEW_LOOK ? Math.min(far + 170, LIGHT ? 420 : 700) : far + 170;   // the new look's fuller trees: drawn out to where the haze takes them
       for (const m of treeGroup.children) { const c = m.userData.cell as [number, number] | undefined; if (c) m.visible = Math.hypot(c[0] - px, c[1] - pz) < treeFar; }

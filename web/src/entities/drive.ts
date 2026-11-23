@@ -9,6 +9,24 @@ import type { ParkedCar } from '../world/streetlife';
 interface Car { obj: THREE.Group; wheels: THREE.Object3D[]; x: number; z: number; h: number; taxi: boolean }
 
 
+/** Headlamps, tail lights and the pool of light the lamps throw on the road ahead (all unlit materials: no real lights,
+ *  which would make every material in the town recompile). Shown after dusk. */
+function headlights(car: THREE.Group): THREE.Group {
+  const body = (car.children[0] as THREE.Mesh).geometry; body.computeBoundingBox();   // the body's own size (the car may be turned)
+  const sz = body.boundingBox!.getSize(new THREE.Vector3()), s = car.scale.x || 1;
+  const L = sz.x / 2, W = sz.z / 2, H = sz.y, g = new THREE.Group(); g.name = 'headlights';
+  const lamp = new THREE.MeshBasicMaterial({ color: 0xfff4d0, toneMapped: false }), tail = new THREE.MeshBasicMaterial({ color: 0xff2a1a, toneMapped: false });
+  for (const z of [-W * 0.62, W * 0.62]) {
+    const h = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.34), lamp); h.position.set(L + 0.02, H * 0.42, z); g.add(h);
+    const t = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.14, 0.3), tail); t.position.set(-L - 0.02, H * 0.45, z); g.add(t);
+  }
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128; const c = cv.getContext('2d')!;
+  const gr = c.createRadialGradient(64, 110, 4, 64, 70, 70); gr.addColorStop(0, 'rgba(255,240,200,0.9)'); gr.addColorStop(1, 'rgba(255,240,200,0)'); c.fillStyle = gr; c.fillRect(0, 0, 128, 128);
+  const pool = new THREE.Mesh(new THREE.PlaneGeometry(9, 16).rotateX(-Math.PI / 2).rotateY(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  pool.position.set(L + 8 / s, 0.12, 0); pool.scale.setScalar(1 / s); pool.renderOrder = 2; g.add(pool);
+  g.visible = false; car.add(g); return g;
+}
+
 function rng(seed: number) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
 export class Drive {
@@ -63,7 +81,9 @@ export class Drive {
     const car: Car = { obj: c.obj, wheels: c.wheels, x: pc.x, z: pc.z, h: pc.h, taxi: false }; this.list.push(car); return car;
   }
 
-  enter(c: Car | ParkedCar): Car { const car = 'obj' in c ? c : this.take(c); this.riding = car; this.v = 0; return car; }
+  enter(c: Car | ParkedCar): Car { const car = 'obj' in c ? c : this.take(c); this.riding = car; this.v = 0; if (!car.obj.getObjectByName('headlights')) headlights(car.obj); return car; }
+  /** Lights on after dusk (`dark`: 0 day, 1 night), on the car being driven. */
+  lights(dark: number) { for (const c of this.list) { const h = c.obj.getObjectByName('headlights'); if (h) h.visible = c === this.riding && dark > 0.3; } }
 
   /** Get out: the spot beside the driver's door. */
   park(): { x: number; z: number } | null {

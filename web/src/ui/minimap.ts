@@ -67,6 +67,8 @@ export class Minimap {
   close() { const was = this.big; this.big = false; this.cv.classList.remove('big'); this.zoom = this.view = null; this.picked = null; this.onPick(null); if (was) this.onClose(); }
   /** The big map opened (from a tap on the minimap) / closed. */
   onOpen: () => void = () => {};
+  /** The town the child is in (drawn on the big map's corner), and how far around them the town is loaded (metres). */
+  town = ''; loadedR = 0;
   /** While What's on is open, a tap on empty map does not close it. */
   stayOpen = false;
   onClose: () => void = () => {};
@@ -155,6 +157,12 @@ export class Minimap {
       c.fillStyle = '#f2b441'; c.beginPath(); c.arc(x, y, 4, 0, Math.PI * 2); c.fill();
       c.strokeStyle = '#0a1020'; c.lineWidth = 1.5; c.stroke();
     }
+    // the area loaded around the child (what is drawn in detail), and the town's name
+    if (this.big && this.loadedR > 0) {
+      c.save(); c.setLineDash([6, 5]); c.strokeStyle = 'rgba(159,232,214,.75)'; c.lineWidth = 2;
+      c.beginPath(); c.arc(ox + (cx / T) * k, oy + (cz / T) * k, this.loadedR / T * k, 0, Math.PI * 2); c.stroke(); c.restore();
+    }
+    if (this.big && this.town) { c.font = '700 16px Mukta, sans-serif'; const w = c.measureText(this.town).width; c.fillStyle = 'rgba(10,16,32,.8)'; c.fillRect(10, 10, w + 18, 26); c.fillStyle = '#f2c230'; c.textAlign = 'left'; c.fillText(this.town, 19, 29); }
     // the child, and which way the view looks (the camera looks along -(cos yaw, sin yaw))
     const x = ox + (cx / T) * k, y = oy + (cz / T) * k, a = Math.atan2(-Math.sin(yaw), -Math.cos(yaw));
     c.fillStyle = 'rgba(242,180,65,.3)'; c.beginPath(); c.moveTo(x, y); c.arc(x, y, 22, a - 0.5, a + 0.5); c.fill();

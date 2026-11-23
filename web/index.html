@@ -80,6 +80,9 @@
     body.whats #places { inset: 8px 8px 8px auto; width: calc(38vw - 8px); }
     body.whats #evcard { top: auto; bottom: 20px !important; left: 31vw !important; }
   }
+  #town { top: 206px; right: 14px; width: 170px; text-align: center; font-weight: 700; color: var(--lamp); font-size: 13px; }
+  body.whats #town, #map.big ~ #town { display: none; }
+  @media (max-width: 700px) { #town { top: 154px; width: 120px; font-size: 12px; } }
   .act button.hot { border-color: #5fd8c8; color: #0a1020; background: #5fd8c8; }
   /* phones: one compact row of actions along the bottom (the ones you use most first), four slim camera buttons in a
      column on the right, the map credit small and out of the way */
@@ -110,7 +113,7 @@
   <div class="hud" id="perf"></div>
   <canvas id="map" title="Map of Panjim (tap to open)"></canvas>
   <div class="hud" id="help">WASD: walk · Shift: run · click, then move the mouse: look around (Esc frees it) · Q/E, Z/X: turn · wheel/±: zoom · T: talk · F: lift · L: torch · [ ]: tilt · 0: reset view · P: places · M: map · N: skip to night/day</div>
-  <button id="mapX" aria-label="Close the map">✕ Close</button><div id="stick"><i></i></div><div id="places"></div><div id="arrow"></div>
+  <button id="mapX" aria-label="Close the map">✕ Close</button><div id="town" class="hud"></div><div id="stick"><i></i></div><div id="places"></div><div id="arrow"></div>
   <div class="act"><button id="bWhat">What's on</button><button id="bShare" style="border-color:rgba(95,216,200,.6);color:#a8f0e6">Share your story</button><button id="bTalk">Talk</button><button id="bLift">Lift</button></div>
   <div class="vignette"></div>
   <div class="btns"><button id="bHome" aria-label="Reset the view" title="Reset the view (0)">⌂</button><button id="bTiltD" aria-label="Tilt down">⤓</button><button id="bTiltU" aria-label="Tilt up">⤒</button><button id="bL" aria-label="Turn left">⟲</button><button id="bR" aria-label="Turn right">⟳</button><button id="bOut" aria-label="Zoom out">−</button><button id="bIn" aria-label="Zoom in">+</button></div>
