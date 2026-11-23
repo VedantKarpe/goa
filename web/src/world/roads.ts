@@ -2,7 +2,7 @@
 // mesh. Also the lookup used to keep the streets walkable and to stand people and vehicles on bridges.
 import { NEW_LOOK } from './look';
 import * as THREE from 'three';
-import { Ground, T, pts, bridgeProfiles, type PanjimData } from './data';
+import { Ground, T, pts, bridgeProfiles, type PanjimData, RAW_GROUND } from './data';
 import { wear } from './wear';
 
 const ROAD_K = 1.5;                 // streets are drawn 1.5 x their mapped width, as in the canvas game
@@ -29,7 +29,7 @@ function ribbon(line: [number, number][], width: number, g: Ground, lift: number
     const a = pl[Math.max(0, i - 1)], b = pl[Math.min(pl.length - 1, i + 1)], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
     const nx = -(b[1] - a[1]) / L, nz = (b[0] - a[0]) / L, [x, z] = pl[i];
     for (const s of [-1, 1]) {
-      const X = x + nx * h * s, Z = z + nz * h * s, y = dk !== null ? dk : Math.max(0.6, g.heightAt(X, Z)) + lift;   // a street never dips under the river at the bank
+      const X = x + nx * h * s, Z = z + nz * h * s, y = dk !== null ? dk : Math.max(0.6, g.heightAt(RAW_GROUND ? X : x, RAW_GROUND ? Z : z)) + lift;   // level from side to side (the middle's height); never under the river at the bank
       P.push(X, y, Z);
     }
     if (i) { const k = base + (i - 1) * 2; I.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }

@@ -3,7 +3,9 @@
 
 export const T = 20;            // metres a tile
 export const EXAG = 1.6;        // heights are drawn this much taller than they are, so Altinho reads as a hill
-export const WATER_Y = 0;       // the river and the sea
+export const WATER_Y = 0;
+/** ?ground=raw: the ground as surveyed, unlevelled (to compare). */
+export const RAW_GROUND = typeof location !== 'undefined' && location.search.includes('ground=raw');       // the river and the sea
 
 type Flat = number[];           // [x0, y0, x1, y1, ...] in tiles
 export interface Landmark { name: string; file: string; at: [number, number][]; cov: number[]; deck: number }
@@ -83,11 +85,33 @@ export class Ground {
         if (!this.wet[ty * W + tx]) land++;
         dm = Math.min(dm, dist[ty * W + tx]);
       }
-      const h = this.rawHeight(i, j) * EXAG * Math.min(1, dm / 3) + 0.6;
+      const raw = this.rawHeight(i, j), flat = RAW_GROUND ? raw : raw < 12 ? raw * 0.33 : 4 + (raw - 12);   // the lowlands flat, the hills as they are
+      const h = flat * EXAG * Math.min(1, dm / 3) + 0.6;
       // a corner touching more water than land sits under the water; between, it slopes down to it
       const f = land / 4;
       this.corner[j * (W + 1) + i] = f >= 0.75 ? h : f <= 0.25 ? -2.2 : -2.2 + (h + 2.2) * (f - 0.25) / 0.5;
     }
+    if (!RAW_GROUND) this.levelStreets(d);
+  }
+
+  /** Streets lie flat in the ground: each street's height is smoothed along its length, and the ground under it (and a
+   *  little either side) is set to that, so a road never tilts sideways or cuts into a bank. Bridges keep their decks. */
+  private levelStreets(d: PanjimData) {
+    const W = this.W, w = W + 1, C = this.corner, best = new Float32Array(C.length).fill(1e9), tgt = new Float32Array(C.length);
+    for (const [f, width, flags] of d.r) {
+      if (flags & 1) continue;                                          // a bridge: its own deck
+      const p = pts(f), S: [number, number][] = [];
+      for (let k = 1; k < p.length; k++) { const [ax, ay] = p[k - 1], [bx, by] = p[k], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 0.25)); for (let t = k === 1 ? 0 : 1; t <= n; t++) S.push([ax + (bx - ax) * t / n, ay + (by - ay) * t / n]); }
+      if (!S.length) continue;
+      const raw = S.map(([x, y]) => this.heightAt(x * T, y * T)), hs = raw.map((_, k) => { let s = 0, n = 0; for (let q = Math.max(0, k - 8); q <= Math.min(raw.length - 1, k + 8); q++) { s += raw[q]; n++; } return s / n; });   // smoothed along the street (about 80 m)
+      const r = width / 2 / T + 0.75;
+      S.forEach(([x, y], k) => {
+        for (let j = Math.max(0, Math.floor(y - r)); j <= Math.min(this.H, Math.ceil(y + r)); j++) for (let i = Math.max(0, Math.floor(x - r)); i <= Math.min(W, Math.ceil(x + r)); i++) {
+          const dd = Math.hypot(i - x, j - y), idx = j * w + i; if (dd < r && dd < best[idx]) { best[idx] = dd; tgt[idx] = hs[k]; }
+        }
+      });
+    }
+    for (let idx = 0; idx < C.length; idx++) if (best[idx] < 1e9 && C[idx] > 0) C[idx] = Math.max(0.6, tgt[idx]);
   }
 
   /** The surveyed height in metres at tile position (x, y). */
