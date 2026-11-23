@@ -56,7 +56,7 @@ export class EventCard {
   private el: HTMLDivElement;
   constructor(private guide: (e: GoaEvent) => void, private travel: (e: GoaEvent) => void, private onClose: () => void) {
     this.el = document.createElement('div'); this.el.id = 'evcard';
-    this.el.style.cssText = 'position:fixed;left:50%;bottom:90px;transform:translateX(-50%);width:min(92vw,420px);z-index:7;display:none;background:rgba(14,20,36,.96);border:1px solid rgba(236,228,207,.3);border-radius:12px;padding:12px 14px;color:#ece4cf;font:14px Mukta,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.5)';
+    this.el.style.cssText = 'position:fixed;left:50%;bottom:14px;transform:translateX(-50%);width:min(92vw,420px);z-index:40;display:none;background:rgba(14,20,36,.96);border:1px solid rgba(236,228,207,.3);border-radius:12px;padding:12px 14px;color:#ece4cf;font:14px Mukta,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.5)';
     document.body.appendChild(this.el);
   }
   get open() { return this.el.style.display !== 'none'; }

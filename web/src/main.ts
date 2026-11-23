@@ -173,6 +173,10 @@ async function start() {
     () => map.unzoom());
   map.onPick = e => (e ? evCard.show(e) : evCard.hide());
   loadEvents(d).then(ev => { map.events = ev; });
+  document.getElementById('bWhat')!.addEventListener('click', e => {
+    (e.currentTarget as HTMLElement).blur();
+    if (!map.openEvents()) hud.whisper('Nothing on just now, baba. Check again in a few days!', 4);
+  });
   const boats = new Boats(g, d.casinos ?? []); scene.add(boats.group);
   const pumps = new Pumps(net, g, (x, z) => !bi.solid(x, z, 9) && !g.isWet(x, z) && !si.at(x, z)); scene.add(pumps.group);
   let home: [number, number] = [px, pz];

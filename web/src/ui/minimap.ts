@@ -63,6 +63,16 @@ export class Minimap {
   unzoom() { this.picked = null; if (this.view) this.zoom = { x: this.d.W / 2, y: this.d.H / 2, span: this.full() }; }
   /** Shut the big map. */
   close() { this.big = false; this.cv.classList.remove('big'); this.zoom = this.view = null; this.picked = null; }
+  /** Open the big map zoomed to fit everything that is on (the What's on button). */
+  openEvents() {
+    if (!this.events.length) return false;
+    if (!this.big) { this.big = true; this.cv.classList.add('big'); }
+    const xs = this.events.map(e => e.x / T), ys = this.events.map(e => e.z / T);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const W = this.cv.clientWidth || 1, H = this.cv.clientHeight || 1;
+    this.picked = null; this.zoomTo((x0 + x1) / 2, (y0 + y1) / 2, Math.max(40, (x1 - x0) * 1.5, (y1 - y0) * 1.5 * W / H));
+    return true;
+  }
   /** Open the big map on a pin (from outside, e.g. a button). */
   openOn(e: GoaEvent) { if (!this.big) { this.big = true; this.cv.classList.add('big'); } this.picked = e; this.zoomTo(e.x / T, e.z / T, 22); }
 
