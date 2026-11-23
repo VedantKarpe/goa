@@ -80,9 +80,13 @@
     body.whats #places { inset: 8px 8px 8px auto; width: calc(38vw - 8px); }
     body.whats #evcard { top: auto; bottom: 20px !important; left: 31vw !important; }
   }
-  #town { top: 206px; right: 14px; width: 170px; text-align: center; font-weight: 700; color: var(--lamp); font-size: 13px; }
+  /* a real button over the minimap (taps on the map's canvas did not get through on some phones), and the town's name as a button too */
+  #mapBtn { position: fixed; z-index: 7; right: 14px; top: 32px; width: 174px; height: 174px; border-radius: 50%; background: transparent; border: 0; padding: 0; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  #map.big ~ #mapBtn { display: none; }
+  #town { position: fixed; z-index: 7; top: 206px; right: 14px; width: 170px; text-align: center; font: 700 13px Mukta, sans-serif; color: var(--lamp); background: none; border: 0; cursor: pointer; text-shadow: 0 1px 2px rgba(0,0,0,.7); touch-action: manipulation; }
+  #town::after { content: ' ▸'; }
   body.whats #town, #map.big ~ #town { display: none; }
-  @media (max-width: 700px) { #town { top: 154px; width: 120px; font-size: 12px; } }
+  @media (max-width: 700px) { #town { top: 154px; width: 120px; font-size: 12px; } #mapBtn { width: 124px; height: 124px; } }
   .act button.hot { border-color: #5fd8c8; color: #0a1020; background: #5fd8c8; }
   /* phones: one compact row of actions along the bottom (the ones you use most first), four slim camera buttons in a
      column on the right, the map credit small and out of the way */
@@ -93,7 +97,7 @@
     .act { left: 6px; right: 6px; bottom: 20px; gap: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
     .act::-webkit-scrollbar { display: none; }
     .act button { height: 38px; padding: 0 11px; font-size: 13px; flex: 0 0 auto; }
-    #bTalk { order: 1; } #bLift { order: 2; } #bWhat { order: 3; } #bShare { order: 5; }
+    #bTalk { order: 1; } #bLift { order: 2; } #bAuto { order: 2; } #bWhat { order: 3; } #bShare { order: 5; }
     #bTalk, #bLift { font-size: 14px; padding: 0 15px; }
     .btns { flex-direction: column; right: 6px; bottom: 70px; gap: 6px; }
     .btns button { width: 38px; height: 38px; font-size: 14px; }
@@ -118,8 +122,8 @@
   <div class="hud" id="perf"></div>
   <canvas id="map" title="Map of Panjim (tap to open)"></canvas>
   <div class="hud" id="help">WASD: walk · Shift: run · click, then move the mouse: look around (Esc frees it) · Q/E, Z/X: turn · wheel/±: zoom · T: talk · F: lift · L: torch · [ ]: tilt · 0: reset view · P: places · M: map · N: skip to night/day</div>
-  <button id="mapX" aria-label="Close the map">✕ Close</button><div id="town" class="hud"></div><div id="stick"><i></i></div><div id="places"></div><div id="arrow"></div>
-  <div class="act"><button id="bWhat">What's on</button><button id="bShare" style="border-color:rgba(95,216,200,.6);color:#a8f0e6">Share your story</button><button id="bTalk">Talk</button><button id="bLift">Lift</button></div>
+  <button id="mapX" aria-label="Close the map">✕ Close</button><button id="mapBtn" aria-label="Open the map of this town"></button><button id="town" aria-label="Open the map of this town"></button><div id="stick"><i></i></div><div id="places"></div><div id="arrow"></div>
+  <div class="act"><button id="bAuto" style="display:none">Auto drive</button><button id="bWhat">What's on</button><button id="bShare" style="border-color:rgba(95,216,200,.6);color:#a8f0e6">Share your story</button><button id="bTalk">Talk</button><button id="bLift">Lift</button></div>
   <div class="vignette"></div>
   <div class="btns"><button id="bHome" aria-label="Reset the view" title="Reset the view (0)">⌂</button><button id="bTiltD" aria-label="Tilt down">⤓</button><button id="bTiltU" aria-label="Tilt up">⤒</button><button id="bL" aria-label="Turn left">⟲</button><button id="bR" aria-label="Turn right">⟳</button><button id="bOut" aria-label="Zoom out">−</button><button id="bIn" aria-label="Zoom in">+</button></div>
   <script type="module" src="/src/main.ts"></script>

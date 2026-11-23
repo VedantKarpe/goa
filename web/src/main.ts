@@ -204,9 +204,10 @@ async function start() {
   const TOWNS: Record<string, string> = { 'Panaji': 'Panjim', 'Church Square': 'Panjim', 'Fontainhas': 'Panjim', 'Panjim Bazaar': 'Panjim', 'Campal': 'Panjim', 'Altinho': 'Panjim', 'Patto': 'Panjim', 'Miramar': 'Miramar', 'Caranzalem': 'Caranzalem', 'Dona Paula': 'Dona Paula', 'Taleigao': 'Taleigao', 'Goa University': 'Taleigao', 'Old Goa': 'Old Goa', 'Sinquerim': 'Sinquerim', 'Fort Aguada': 'Sinquerim', 'Kingfisher Villa': 'Sinquerim', 'Ribandar': 'Ribandar', 'Betim': 'Betim', 'Porvorim': 'Porvorim' };
   const townAnchors = d.places.filter(q => TOWNS[q[0]]).map(q => ({ t: TOWNS[q[0]], x: q[1] * T, z: q[2] * T }));
   const townEl = document.getElementById('town')!;
+  for (const id of ['mapBtn', 'town']) document.getElementById(id)!.addEventListener('click', e => { (e.currentTarget as HTMLElement).blur(); if (!map.isBig) { map.focus(px, pz, 110); } });
   setInterval(() => { let best = '', bd = 1e9; for (const a of townAnchors) { const dd = Math.hypot(a.x - px, a.z - pz); if (dd < bd) { bd = dd; best = a.t; } } if (bd > 2500) best = 'Goa'; map.town = best; if (townEl.textContent !== best) townEl.textContent = best; }, 1000);
   document.getElementById('bWhat')!.addEventListener('click', e => { (e.currentTarget as HTMLElement).blur(); if (whats) closeWhats(); else openWhats(); });
-  const mapX = document.getElementById('mapX')!; mapX.addEventListener('click', () => closeWhats());
+  const mapX = document.getElementById('mapX')!; mapX.addEventListener('click', () => { if (whats) closeWhats(); else map.close(); });
   setInterval(() => { mapX.style.display = map.isBig && !whats ? 'block' : 'none'; }, 200);
   const pets = new Pets(net, (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z) && !si.at(x, z)); scene.add(pets.group);
   const drive = new Drive(net, (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z), streetLife.parked); scene.add(drive.group);
@@ -262,6 +263,13 @@ async function start() {
   } btn('bIn', () => rig.zoom(2)); btn('bOut', () => rig.zoom(-2));
   btn('bHome', () => rig.reset()); btn('bTiltD', () => rig.tiltBy(-0.12)); btn('bTiltU', () => rig.tiltBy(0.12));
   btn('bTalk', talk); btn('bLift', lift);
+  btn('bAuto', () => {
+    if (!drive.riding) return;
+    if (drive.auto) { drive.auto = null; hud.whisper('Auto drive off. You have the wheel.', 2); return; }
+    const t = places2.target; if (!t) { hud.whisper('Where to, baba? Open What\'s on, pick a place and tap Guide, then press Auto drive.', 5, true); return; }
+    if (drive.startAuto(t.x, t.z, t.name)) hud.whisper(`Auto drive to ${t.name}. Sit back and look around, baba! (Push the stick to take the wheel.)`, 5, true);
+    else hud.whisper(`No road goes to ${t.name} from here, men.`, 3);
+  });
 
   const places = d.places.map(([n, x, y]) => ({ n, X: x * T, Z: y * T }));
   const look = new Look(renderer, scene, rig.camera);
@@ -348,6 +356,14 @@ async function start() {
       if (bikes.riding) bikes.park(px, pz);
       if (traffic.riding) traffic.hopOff();
       px = held.x; pz = held.z; child.heading = held.heading;
+    } else if (drive.riding && drive.auto) {
+      // auto drive: the car takes the streets to the destination; the view is yours to turn and zoom. Any push on the
+      // stick or the keys takes the wheel back.
+      const m = input.move();
+      if (Math.hypot(m.x, m.y) > 0.3) { drive.auto = null; hud.whisper('You take the wheel, baba.', 2); }
+      else if (drive.stepAuto(dt, (x, z) => move.standY(x, z))) { sfx.done(); hud.whisper(`Reached ${places2.target?.name ?? 'the place'}! Press Park to get out.`, 6, true); }
+      px = drive.riding.x; pz = drive.riding.z; child.heading = drive.riding.h;
+      drive.lights(day.dark);
     } else if (drive.riding) {
       // driving: up/down is the accelerator and brake, left/right steers; the camera swings round behind
       const m = input.move(), mag = Math.min(1, Math.hypot(m.x, m.y));
@@ -438,6 +454,7 @@ async function start() {
     if (shopT <= 0) {
       const lb = document.getElementById('bLift')!, lt = drive.riding ? 'Park' : bikes.riding ? 'Get off' : traffic.riding ? 'Get off' : drive.near(px, pz) ? '🚗 Drive' : bikes.near(px, pz) ? 'Ride' : 'Lift';
       if (lb.textContent !== lt) { lb.textContent = lt; lb.classList.toggle('hot', lt === '🚗 Drive'); }
+      const ab = document.getElementById('bAuto')!; ab.style.display = drive.riding ? '' : 'none'; const at = drive.auto ? 'Stop auto' : 'Auto drive'; if (ab.textContent !== at) { ab.textContent = at; ab.classList.toggle('hot', !!drive.auto); }
       shopT = 0.4; let nm = '';
       for (const s of shops.list) if (Math.hypot(s.x - px, s.z - pz) < 12) { nm = s.name; break; }
       shopTag.textContent = nm; shopTag.style.display = nm ? 'block' : 'none';
