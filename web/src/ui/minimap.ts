@@ -51,8 +51,10 @@ export class Minimap {
           this.picked = pick; this.zoomTo(pick.x / T, pick.z / T, 22); this.onPick(pick); return;
         }
         if (this.zoom) { this.unzoom(); this.onPick(null); return; }   // off the pins while zoomed: back out
+        if (this.stayOpen) return;                                      // in What's on, only its ✕ closes the map
       }
       this.big = !this.big; this.cv.classList.toggle('big', this.big); this.zoom = this.view = null; this.picked = null;
+      if (this.big) this.onOpen(); else this.onClose();
       if (!this.big) this.onPick(null);
     });
   }
@@ -62,7 +64,16 @@ export class Minimap {
   /** Back out to the whole map. */
   unzoom() { this.picked = null; if (this.view) this.zoom = { x: this.d.W / 2, y: this.d.H / 2, span: this.full() }; }
   /** Shut the big map. */
-  close() { this.big = false; this.cv.classList.remove('big'); this.zoom = this.view = null; this.picked = null; this.onPick(null); }
+  close() { const was = this.big; this.big = false; this.cv.classList.remove('big'); this.zoom = this.view = null; this.picked = null; this.onPick(null); if (was) this.onClose(); }
+  /** The big map opened (from a tap on the minimap) / closed. */
+  onOpen: () => void = () => {};
+  /** While What's on is open, a tap on empty map does not close it. */
+  stayOpen = false;
+  onClose: () => void = () => {};
+  /** Open the big map (if shut) and glide to a spot in world metres. */
+  focus(x: number, z: number, span = 30) { if (!this.big) { this.big = true; this.cv.classList.add('big'); } this.picked = null; this.zoomTo(x / T, z / T, span); }
+  /** Open the big map showing everything (the whole map). */
+  open() { if (!this.big) { this.big = true; this.cv.classList.add('big'); } this.zoom = this.view = null; this.picked = null; }
   get isBig() { return this.big; }
   /** Open the big map zoomed to fit everything that is on (the What's on button). */
   openEvents() {

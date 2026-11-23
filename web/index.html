@@ -71,6 +71,15 @@
   #places .sec { color: var(--muted); font-size: 12px; letter-spacing: .05em; text-transform: uppercase; margin: 10px 4px 2px; }
   #places .pl em { display: block; }
   #mapX { position: fixed; z-index: 8; display: none; top: 76px; right: max(14px, calc(50% - min(46vw, 450px) + 8px)); font: 600 14px Mukta, sans-serif; color: #ece4cf; background: rgba(10,16,32,.9); border: 1px solid rgba(236,228,207,.4); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+  body.whats #map.big { top: 8px; left: 8px; right: auto; width: calc(100vw - 16px); height: 42vh; transform: none; border-radius: 12px; }
+  body.whats #places { top: calc(42vh + 14px); bottom: 8px; left: 8px; right: auto; width: calc(100vw - 16px); max-height: none; transform: none; inset: calc(42vh + 14px) auto 8px 8px; }
+  body.whats #evcard { bottom: auto !important; top: calc(42vh - 150px); }
+  body.whats .act, body.whats .btns, body.whats #objective, body.whats #say, body.whats #arrow { visibility: hidden; }
+  @media (min-width: 900px) {
+    body.whats #map.big { width: calc(62vw - 16px); height: calc(100vh - 16px); }
+    body.whats #places { inset: 8px 8px 8px auto; width: calc(38vw - 8px); }
+    body.whats #evcard { top: auto; bottom: 20px !important; left: 31vw !important; }
+  }
   .act button.hot { border-color: #5fd8c8; color: #0a1020; background: #5fd8c8; }
   /* phones: one compact row of actions along the bottom (the ones you use most first), four slim camera buttons in a
      column on the right, the map credit small and out of the way */

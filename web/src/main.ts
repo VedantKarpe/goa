@@ -181,11 +181,18 @@ async function start() {
   setupShare(document.getElementById('bShare')!);
   // What's on: one list of what is happening (events, stories, ads) and the places, nearest first
   places2.here = () => [px, pz];
+  // What's on is one screen: the whole map with every event, story and ad pinned on it, and the list under it (beside it
+  // on a wide screen). The What's on button and a tap on the minimap both open it; ✕ closes both.
+  let whats = false;
+  const openWhats = () => { if (whats) return; whats = true; map.stayOpen = true; document.body.classList.add('whats'); map.open(); places2.show(); };
+  const closeWhats = () => { if (!whats) return; whats = false; map.stayOpen = false; document.body.classList.remove('whats'); evCard.hide(); places2.hide(); map.close(); };
   places2.onShow = e => { map.openOn(e); evCard.show(e); };
-  document.getElementById('bWhat')!.addEventListener('click', e => { (e.currentTarget as HTMLElement).blur(); places2.toggle(); });
-  // the big map has its own close button (tapping it was the only way out before)
-  const mapX = document.getElementById('mapX')!; mapX.addEventListener('click', () => map.close());
-  setInterval(() => { mapX.style.display = map.isBig ? 'block' : 'none'; }, 200);
+  places2.onFocus = (x, z) => { evCard.hide(); map.focus(x, z); };
+  places2.onHide = () => closeWhats();
+  map.onOpen = () => openWhats(); map.onClose = () => closeWhats();
+  document.getElementById('bWhat')!.addEventListener('click', e => { (e.currentTarget as HTMLElement).blur(); if (whats) closeWhats(); else openWhats(); });
+  const mapX = document.getElementById('mapX')!; mapX.addEventListener('click', () => closeWhats());
+  setInterval(() => { mapX.style.display = map.isBig && !whats ? 'block' : 'none'; }, 200);
   const pets = new Pets(net, (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z) && !si.at(x, z)); scene.add(pets.group);
   const drive = new Drive(net, (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z), streetLife.parked); scene.add(drive.group);
   const boats = new Boats(g, d.casinos ?? []); scene.add(boats.group);
@@ -219,7 +226,7 @@ async function start() {
     if (k === 't') talk();
     if (k === 'f') lift();
     if (k === 'l') st.lamp = !st.lamp;
-    if (k === 'p') places2.toggle();
+    if (k === 'p') document.getElementById('bWhat')!.click();
     if (k === '0' || k === 'home') rig.reset();
     if (k === 'm') document.getElementById('map')!.click();
     if (k === 'h' && drive.riding) sfx.honk();
