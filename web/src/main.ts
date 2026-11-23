@@ -2,6 +2,7 @@
 // townspeople, the day and its street lights, tasks from people, the minimap with fog of war.
 import * as THREE from 'three';
 import { loadPanjim, Ground, T } from './world/data';
+import { showLoader, loaderStep, loaderBar, hideLoader } from './ui/loader';
 import { buildTerrain, buildWater, waterTime } from './world/terrain';
 import { buildRoads, StreetIndex } from './world/roads';
 import { buildBuildings, BuildingIndex, windowsLit, cullChunks } from './world/buildings';
@@ -46,7 +47,9 @@ import { AreaManager } from './areas/manager';
 import { areas, beachSand } from './areas/registry';
 
 async function start() {
-  const [d] = await Promise.all([loadPanjim(), loadModels()]);
+  showLoader();
+  const [d] = await Promise.all([loadPanjim(f => loaderBar(f * 55)), loadModels()]);
+  await loaderStep(58, 'Laying the roads…');
   const g = new Ground(d);
 
   const app = document.getElementById('app')!;
@@ -68,6 +71,7 @@ async function start() {
   scene.fog = new THREE.Fog(0xdcdcd4, 300, 1500);   // the humid haze that greys the far shore and Altinho
 
   const roads = buildRoads(d, g); scene.add(roads.group);
+  await loaderStep(68, 'Building the houses…');
   const si = new StreetIndex(roads.segs);
   // the landmarks: their Blender models stand on their map points, in place of the plain blocks there
   const lmBox = d.lm.flatMap(l => l.at.map(([x, y]) => [x + l.cov[0], x + l.cov[1], y + l.cov[2], y + l.cov[3]]));
@@ -84,6 +88,7 @@ async function start() {
   }) };
   const extra = infill(d, g, si); plain.b = plain.b.concat(extra);
   const blds = buildBuildings(plain, g, roads.segs); scene.add(blds.group);
+  await loaderStep(80, 'Planting coconut palms…');
   // the landmarks' own outlines stay solid, though their plain blocks are not drawn
   const kept = new Set(plain.b.map(b => b[0]));
   for (const [f] of d.b) {
@@ -111,6 +116,7 @@ async function start() {
     }
   }
   const treeGroup = buildTrees(d, g, bi, si); scene.add(treeGroup);
+  await loaderStep(88, 'Parking the cars, waking up the people…');
 
   const child = new Child(); scene.add(child.obj);
   const move = new Movement(g, bi, si);
@@ -167,6 +173,7 @@ async function start() {
     }
     if (best) scene.add(buildLoveSign(best[0], g.heightAt(best[0], best[1]), best[1], 0));
   }
+  await loaderStep(96, 'Almost there, baba…');
   const map = new Minimap(d);
   scene.add(buildPromenade(d, g, bi, (x, z) => { const s = si.at(x, z); return !!s && s.half > 2; }, drawnLand));   // no railing across a street
   const bikes = new Bikes(net, g, (x, z) => move.free(x, z) && !si.at(x, z)); scene.add(bikes.group);
@@ -251,7 +258,7 @@ async function start() {
   const look = new Look(renderer, scene, rig.camera);
   const resize = () => { renderer.setSize(app.clientWidth, app.clientHeight, false); look.setSize(app.clientWidth, app.clientHeight, renderer.getPixelRatio()); };
   addEventListener('resize', resize); resize();
-  document.getElementById('loading')!.remove();
+  await loaderStep(100, 'Aao, welcome to Goa!'); hideLoader();
 
   // the cartoon look: cel shading everywhere, ink outlines on everything solid but the ground, streets and buildings
   const flat = new Set(['roads', 'buildings', 'grass', 'street life', 'love sign']);

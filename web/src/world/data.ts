@@ -22,10 +22,18 @@ export interface PanjimData {
   shops?: [string, string, number, number, number][];   // name, kind, x, y (tiles), famous (1), from OpenStreetMap
 }
 
-export async function loadPanjim(): Promise<PanjimData> {
+/** Load the map, telling `progress` how far along it is (0 to 1). The file comes compressed with no size given, so the
+ *  share is of its known unpacked size (about 2.2 MB). */
+export async function loadPanjim(progress: (f: number) => void = () => {}): Promise<PanjimData> {
   const res = await fetch(`${import.meta.env.BASE_URL}data/panjim.json`);
   if (!res.ok) throw new Error(`could not load the map (${res.status})`);
-  return res.json();
+  if (!res.body) return res.json();
+  const total = Number(res.headers.get('content-length')) || 2_200_000, reader = res.body.getReader(), chunks: Uint8Array[] = [];
+  let got = 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.length; progress(Math.min(0.99, got / total)); }
+  const all = new Uint8Array(got); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+  progress(1);
+  return JSON.parse(new TextDecoder().decode(all));
 }
 
 export const pts = (f: Flat): [number, number][] => { const o: [number, number][] = []; for (let i = 0; i < f.length; i += 2) o.push([f[i], f[i + 1]]); return o; };
