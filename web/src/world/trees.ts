@@ -40,12 +40,19 @@ function palmGeo(): THREE.BufferGeometry {
 
 /** The new look's broadleaf tree (mango, jackfruit, the woods on the Dona Paula hill): a forked trunk under a full,
  *  rounded crown of several soft clumps. */
+/** A round crown clump, shaded light on top and darker underneath like a painted tree. */
+function clump(r: number, x: number, y: number, z: number, hex: number): THREE.BufferGeometry {
+  const g = new THREE.IcosahedronGeometry(r, 2).scale(1.08, 0.94, 1.08).translate(x, y, z).toNonIndexed(), p = g.attributes.position, c = new THREE.Color(hex), a = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) { const k = 0.8 + 0.32 * Math.max(0, Math.min(1, (p.getY(i) - (y - r)) / (2 * r))); a[i * 3] = c.r * k; a[i * 3 + 1] = c.g * k; a[i * 3 + 2] = c.b * k; }
+  g.setAttribute('color', new THREE.BufferAttribute(a, 3)); g.deleteAttribute('uv'); return g;
+}
+
 function leafyGeo(crown: number): THREE.BufferGeometry {
   const parts = [tinted(new THREE.CylinderGeometry(0.35, 0.6, 4.5, 7).translate(0, 2.25, 0), 0x5a4030).toNonIndexed()];
   for (const a of [0.4, 2.5, 4.4]) parts.push(tinted(new THREE.CylinderGeometry(0.18, 0.3, 3, 5).rotateZ(0.55).rotateY(a).translate(Math.cos(a) * 0.7, 5, -Math.sin(a) * 0.7), 0x5a4030).toNonIndexed());
   const c = new THREE.Color(crown), dark = c.clone().multiplyScalar(0.78).getHex(), light = c.clone().lerp(new THREE.Color(0x9ac060), 0.25).getHex();
-  const blobs: [number, number, number, number, number][] = [[0, 7.6, 0, 3.4, crown], [2.2, 6.6, 0.8, 2.5, dark], [-2.0, 6.8, -1.0, 2.6, crown], [0.6, 6.5, -2.2, 2.4, dark], [-0.8, 8.6, 1.2, 2.3, light]];
-  for (const [x, y, z, r, col] of blobs) parts.push(tinted(new THREE.IcosahedronGeometry(r, 1).scale(1.1, 0.85, 1.1).translate(x, y, z), col).toNonIndexed());
+  const blobs: [number, number, number, number, number][] = [[0, 7.8, 0, 3.3, crown], [2.4, 6.8, 0.9, 2.6, dark], [-2.2, 6.9, -1.0, 2.7, crown], [0.7, 6.6, -2.4, 2.5, dark], [-0.9, 9.2, 1.1, 2.4, light], [-1.6, 6.5, 2.0, 2.3, crown], [1.8, 8.8, -0.8, 2.2, light]];
+  for (const [x, y, z, r, col] of blobs) parts.push(clump(r, x, y, z, col));
   return mergeGeometries(parts)!;
 }
 
@@ -126,14 +133,14 @@ export function buildTrees(d: PanjimData, g: Ground, bi: BuildingIndex, si: Stre
   };
   if (NEW_LOOK) {
     // woods: dense mixed canopy (the Raj Bhavan hill at Dona Paula, Altinho's slopes), with coconut palms through it
-    place(leafyGeo(0x3f7234), spots('F', 2.6), [0.8, 1.35]); place(leafyGeo(0x4f8238), spots('F', 1.2), [0.7, 1.2]); place(palm2Geo(), spots('F', 0.5), [0.95, 1.3]);
+    place(leafyGeo(0x5e963c), spots('F', 2.6), [0.8, 1.35]); place(leafyGeo(0x76aa45), spots('F', 1.2), [0.7, 1.2]); place(palm2Geo(), spots('F', 0.5), [0.95, 1.3]);
   } else place(treeGeo(3.5, 3.4, 0x467a3a), spots('F', 2), [0.8, 1.4]);
   place(treeGeo(1.2, 2.4, 0x2a4a30), spots('M', 1), [0.7, 1.1]);
   // coconut palms over the open ground and along the sand, flowering bushes in the gardens
   place(NEW_LOOK ? palm2Geo() : palmGeo(), [...spots('G', 0.35), ...spots('S', 0.06), ...spots('B', 0.06)], [0.9, 1.25]);   // a few palms on the sand: Miramar is open beach, casuarinas behind it
   place(bushGeo(), spots('G', 0.9), [0.8, 1.2]);
   // shade trees in the gardens and open plots, and tufts of tall grass everywhere green
-  place(NEW_LOOK ? leafyGeo(0x4f8a3c) : treeGeo(3.2, 3.0, 0x4f8a3c), spots('G', 0.35), [0.6, 1.0]);
+  place(NEW_LOOK ? leafyGeo(0x6ea442) : treeGeo(3.2, 3.0, 0x4f8a3c), spots('G', 0.35), [0.6, 1.0]);
   const tuft = mergeGeometries([0, 1, 2].map(k => tinted(new THREE.ConeGeometry(0.35, 1.4, 4).rotateZ((k - 1) * 0.35).translate((k - 1) * 0.3, 0.6, 0), k === 1 ? 0x5f9a3e : 0x4a8434).toNonIndexed()))!;
   // grass: no outline and no shadow (there are tens of thousands), in its own group
   const grass = new THREE.Group(); grass.name = 'grass'; group.add(grass);
