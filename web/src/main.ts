@@ -24,6 +24,10 @@ import { setupShare } from './ui/share';
 import { Drive } from './entities/drive';
 import { Pets } from './entities/pets';
 import { Touts } from './entities/touts';
+import { Bubbles, type Thing } from './ui/bubbles';
+import { Guide } from './ui/guide';
+import { Passport } from './ui/passport';
+import { areas as areaList } from './areas/registry';
 import { sfx, unlockAudio } from './systems/sfx';
 import { loadModels, rawModel } from './world/models';
 import { Boats } from './entities/boats';
@@ -181,6 +185,10 @@ async function start() {
   scene.add(buildPromenade(d, g, bi, (x, z) => { const s = si.at(x, z); return !!s && s.half > 2; }, drawnLand));   // no railing across a street
   const bikes = new Bikes(net, g, (x, z) => move.free(x, z) && !si.at(x, z)); scene.add(bikes.group);
   const places2 = new Places(d, g, scene, p => hud.whisper(`Okay, ${p.name}. Follow the green light, baba. ${p.note}`, 6));
+  const passport = new Passport(places2.list.map(p => p.name)); passport.onNew = () => sfx.done();
+  // things to do, on the big map
+  const ACT: Record<string, [string, string]> = { 'Dona Paula': ['🛥️', 'Jet ski · Dona Paula'], 'Miramar': ['🚙', 'Stuck cars · Miramar'], 'Old Goa': ['⛪', 'Old Goa churches'], 'Kingfisher Villa': ['🏡', 'Kingfisher Villa'], 'IFFI': ['🎬', 'IFFI'], 'Fontainhas': ['🎨', 'Fontainhas lanes'] };
+  map.activities = areaList(d).filter(a => ACT[a.name]).map(a => ({ x: a.x, z: a.z, icon: ACT[a.name][0], name: ACT[a.name][1] }));
   // what's on: events and ads as pins on the big map; pick one to zoom in, read it and be guided there
   const evCard = new EventCard(
     e => { places2.target = { name: e.title, x: e.x, z: e.z, note: '', seen: false }; map.close(); hud.whisper(`Okay, ${e.where}. Follow the green light, baba.`, 6); },
@@ -196,7 +204,7 @@ async function start() {
   let whats = false;
   const openWhats = () => { if (whats) return; whats = true; map.stayOpen = true; document.body.classList.add('whats'); map.open(); places2.show(); };
   const closeWhats = () => { if (!whats) return; whats = false; map.stayOpen = false; document.body.classList.remove('whats'); evCard.hide(); places2.hide(); map.close(); };
-  places2.onShow = e => { map.openOn(e); evCard.show(e); };
+  places2.onShow = e => { map.openOn(e); evCard.show(e); if (e.type === 'story') passport.give('story'); };
   places2.onFocus = (x, z) => { evCard.hide(); map.focus(x, z); };
   places2.onHide = () => closeWhats();
   map.onOpen = () => { if (!whats) map.focus(px, pz, 110); }; map.onClose = () => closeWhats();
@@ -207,6 +215,7 @@ async function start() {
   for (const id of ['mapBtn', 'town']) document.getElementById(id)!.addEventListener('click', e => { (e.currentTarget as HTMLElement).blur(); if (!map.isBig) { map.focus(px, pz, 110); } });
   setInterval(() => { let best = '', bd = 1e9; for (const a of townAnchors) { const dd = Math.hypot(a.x - px, a.z - pz); if (dd < bd) { bd = dd; best = a.t; } } if (bd > 2500) best = 'Goa'; map.town = best; if (townEl.textContent !== best) townEl.textContent = best; }, 1000);
   document.getElementById('bWhat')!.addEventListener('click', e => { (e.currentTarget as HTMLElement).blur(); if (whats) closeWhats(); else openWhats(); });
+  document.getElementById('bPass')!.addEventListener('click', e => { (e.currentTarget as HTMLElement).blur(); passport.toggle(); });
   const mapX = document.getElementById('mapX')!; mapX.addEventListener('click', () => { if (whats) closeWhats(); else map.close(); });
   setInterval(() => { mapX.style.display = map.isBig && !whats ? 'block' : 'none'; }, 200);
   const pets = new Pets(net, (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z) && !si.at(x, z)); scene.add(pets.group);
@@ -217,18 +226,26 @@ async function start() {
   const rig = new CameraRig(), input = new Input(renderer.domElement), hud = new Hud();
   const st = { points: 0, lamp: true };
   let knockX = 0, knockZ = 0, hurtT = 0;
-  const talk = () => {
-    const said = areaMgr.talk(px, pz); if (said) { hud.whisper(said, 9, true); return; }
-    const giver = quests.giverNear(px, pz); if (giver) { hud.whisper(quests.accept(giver), 10, true); sfx.pick(); return; }   // tasks start only when you ask
-    const tt = touts.near(px, pz); if (tt) { hud.whisper(`${tt.cast.name.replace('Tout at ', '')}: "${touts.talk(tt)}"`, 6, true); return; }
-    const pet = pets.near(px, pz, 2.5) ?? (people.near(px, pz) ? null : pets.near(px, pz)); if (pet) { const m = pets.feed(pet); hud.whisper(m, 7, true); if (pets.mine === pet && pet.fed === 3) { sfx.done(); sfx.bark(); } else sfx.pick(); return; }
+  // whoever answers: their words in a speech bubble over their head (when there is one to point at), else the box
+  const say = (m: string, secs: number, at?: { x: number; z: number; y?: number }) => { if (at) bubbles.speak(at.x, (at.y ?? g.heightAt(at.x, at.z)) + 3.4, at.z, m, secs); else hud.whisper(m, secs, true); };
+  const talk = (at?: { x: number; z: number }) => {
+    const said = areaMgr.talk(px, pz); if (said) { say(said, 9, at); guide.did('talk'); return; }
+    const giver = quests.giverNear(px, pz); if (giver) { say(quests.accept(giver), 10, at); sfx.pick(); guide.did('talk'); return; }   // tasks start only when you ask
+    const tt = touts.near(px, pz); if (tt) { say(touts.talk(tt), 6, at ?? tt); passport.give('tout'); return; }
+    const pet = pets.near(px, pz, 2.5) ?? (people.near(px, pz) ? null : pets.near(px, pz));
+    if (pet) { const m = pets.feed(pet); hud.whisper(m, 7, true); guide.did('feed'); if (pets.mine === pet && pet.fed === 3) { sfx.done(); sfx.bark(); passport.give('dog'); } else sfx.pick(); return; }
     const p = people.near(px, pz);
-    hud.whisper(p ? people.talk(px, pz, quests.target) : 'Nobody here to ask, baba. Go near someone and ask.');
+    if (p) { say(people.talk(px, pz, quests.target), 7, at ?? p); guide.did('talk'); sfx.pick(); }
+    else hud.whisper('Nobody here to ask, baba. Go near someone and ask.');
   };
+  // tap a bubble: the child walks over, then does it
+  let walkTo: { x: number; z: number; then: () => void } | null = null;
+  const bubbles = new Bubbles(), guide = new Guide();
+  bubbles.onTap = () => unlockAudio();
   const lift = () => {
     if (drive.riding) { drive.lights(0); const o = drive.park(); if (o && move.free(o.x, o.z)) { px = o.x; pz = o.z; } child.obj.visible = true; pets.hopOut(px, pz); hud.whisper('Parked. Pull the handbrake, baba, this is Goa, everything rolls downhill.', 3); return; }
     const car = traffic.riding || bikes.riding ? null : drive.near(px, pz);
-    if (car) { const cc = drive.enter(car); rig.driveView(); child.obj.visible = false; hud.whisper(cc.taxi ? 'Taxi uncle is having tea, he says take it, bring it back full tank! W to go, S to brake, A/D to steer, H to honk.' : 'Keys in the ignition! W to go, S to brake, A/D to steer, H to honk. Drive slow, no?', 6); return; }
+    if (car) { const cc = drive.enter(car); passport.give('drive'); guide.did('drive'); rig.driveView(); child.obj.visible = false; hud.whisper(cc.taxi ? 'Taxi uncle is having tea, he says take it, bring it back full tank! W to go, S to brake, A/D to steer, H to honk.' : 'Keys in the ignition! W to go, S to brake, A/D to steer, H to honk. Drive slow, no?', 6); return; }
     if (bikes.riding) { bikes.park(px, pz); hud.whisper('Parked. Lock it, no? Somebody will take it otherwise.', 2); return; }
     const bk = traffic.riding ? null : bikes.near(px, pz);
     if (bk) { bikes.mount(bk); hud.whisper(bk.kind === 'scooter' ? 'Vroom! Keys were in it only. Go slow near the church, men.' : 'Tring tring! Pedal, baba, pedal!', 3); return; }
@@ -241,6 +258,7 @@ async function start() {
     if (k === ']' || k === 'pageup') rig.tiltBy(0.1);
     if (k === 'n') day.min = day.night ? 7 * 60 : 19 * 60 + 30;
     if (k === 't') talk();
+    if (k === 'j') passport.toggle();
     if (k === 'f') lift();
     if (k === 'l') st.lamp = !st.lamp;
     if (k === 'p') document.getElementById('bWhat')!.click();
@@ -262,12 +280,12 @@ async function start() {
     for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, () => { input.btnTurn = 0; });
   } btn('bIn', () => rig.zoom(2)); btn('bOut', () => rig.zoom(-2));
   btn('bHome', () => rig.reset()); btn('bTiltD', () => rig.tiltBy(-0.12)); btn('bTiltU', () => rig.tiltBy(0.12));
-  btn('bTalk', talk); btn('bLift', lift);
+  btn('bTalk', () => talk()); btn('bLift', lift);
   btn('bAuto', () => {
     if (!drive.riding) return;
     if (drive.auto) { drive.auto = null; hud.whisper('Auto drive off. You have the wheel.', 2); return; }
     const t = places2.target; if (!t) { hud.whisper('Where to, baba? Open What\'s on, pick a place and tap Guide, then press Auto drive.', 5, true); return; }
-    if (drive.startAuto(t.x, t.z, t.name)) hud.whisper(`Auto drive to ${t.name}. Sit back and look around, baba! (Push the stick to take the wheel.)`, 5, true);
+    if (drive.startAuto(t.x, t.z, t.name)) passport.give('auto'), hud.whisper(`Auto drive to ${t.name}. Sit back and look around, baba! (Push the stick to take the wheel.)`, 5, true);
     else hud.whisper(`No road goes to ${t.name} from here, men.`, 3);
   });
 
@@ -306,11 +324,12 @@ async function start() {
       m.count = k; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true;
     }
   };
+  let helped = 0, stepT = 0, waveT = 0, bubT = 0, lastPts = 0;
   let mapT = 0, shopT = 0, cowSaid = false, cullT = 0;
   const smallStuff = [bikes.group, cows.group, pumps.group, traffic.group, drive.group, pets.group];   // (people show and hide themselves)
   const shopTag = document.createElement('div'); shopTag.id = 'shopTag'; document.body.appendChild(shopTag);
   shopTag.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#7a1e1ee6;color:#fff4d8;font:600 14px Georgia,serif;padding:4px 12px;border-radius:6px;border:2px solid #f2c230;display:none;pointer-events:none;z-index:5';
-  (window as unknown as { rk: unknown }).rk = { look, rentals, areaMgr, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
+  (window as unknown as { rk: unknown }).rk = { bubbles, guide, passport, get walkTo() { return walkTo; }, look, rentals, areaMgr, cows, THREE, d, g, si, bi, signals, scene, renderer, rig, child, day, traffic, people, quests, st, get pos() { return [px, pz]; }, set pos(v: number[]) { px = v[0]; pz = v[1]; } };
   // the sun's disc (a soft glowing sprite, not fogged)
   const sunDisc = (() => {
     const cv = document.createElement('canvas'); cv.width = cv.height = 128; const c = cv.getContext('2d')!;
@@ -385,6 +404,17 @@ async function start() {
       // walk: screen directions turned to the ground under the current view
       const m = input.move(), run = input.has('shift') ? 2 : 1;
       speed = Math.hypot(m.x, m.y) * 32 * run * bikes.boost;
+      if (speed > 0) { walkTo = null; guide.walking(dt); }
+      else if (walkTo) {   // on the way to something tapped
+        const dx = walkTo.x - px, dz = walkTo.z - pz, L = Math.hypot(dx, dz);
+        if (L < 1.8) { const w = walkTo; walkTo = null; w.then(); }
+        else { const st2 = Math.min(L, 9 * dt); child.heading = Math.atan2(dz, dx); const ox = px, oz = pz; [px, pz] = move.step(px, pz, dx / L * st2, dz / L * st2); speed = 9; if (Math.hypot(px - ox, pz - oz) < st2 * 0.2) {   // stuck (a wall in the way): step round to an open spot beside it
+          const w = walkTo; walkTo = null;
+          for (let r = 1.5; r < 6; r += 0.75) { let ok = false; for (let a = 0; a < 6.28; a += 0.5) { const x = w.x + Math.cos(a) * r, z = w.z + Math.sin(a) * r; if (move.free(x, z)) { px = x; pz = z; ok = true; break; } } if (ok) break; }
+          w.then();
+        } }
+      }
+      stepT -= dt; if (speed > 0 && !bikes.riding && stepT <= 0) { stepT = 0.36; sfx.step(); }
       if (speed > 0) {
         const w = rig.screenToGround(m.x, m.y), L = Math.hypot(w.x, w.z) || 1;
         child.heading = Math.atan2(w.z, w.x);
@@ -417,7 +447,7 @@ async function start() {
     const hit = traffic.update(dt, px, pz, night);
     if (hit && !traffic.riding && !drive.riding) { knockX = hit.kx; knockZ = hit.kz; hurtT = 0.6; }
     people.update(dt, day.min, px, pz);
-    if (!drive.riding && !traffic.riding) { const call = touts.update(dt, px, pz, performance.now() / 1000); if (call) hud.whisper(`"${call}"`, 4); }
+    if (!drive.riding && !traffic.riding) { const call = touts.update(dt, px, pz, performance.now() / 1000); if (call) { const t = touts.near(px, pz) ?? touts.list.reduce((a, b) => Math.hypot(a.x - px, a.z - pz) < Math.hypot(b.x - px, b.z - pz) ? a : b); say(call, 4, t); passport.give('tout'); } }
     { const c = rentals.closest(px, pz); pets.update(dt, px, pz, input.has('shift'), !!(drive.riding || traffic.riding || bikes.riding), c ? c.d : 1e9, sfx.bark); }
     // the rental cars: hit by one and you lose (safe while riding a pilot or the bus)
     if (rentals.update(dt, px, pz, night, !!traffic.riding)) {
@@ -447,7 +477,7 @@ async function start() {
     }
     // rush hours: the roads fill up 8-10 am and 5-7:30 pm, thin out at midday and empty late at night
     { const h = day.min / 60; traffic.count = (h >= 8 && h < 10) || (h >= 17 && h < 19.5) ? 58 : (h >= 7 && h < 21) ? 34 : (h >= 21 && h < 23) || (h >= 6 && h < 7) ? 20 : 10; }
-    const az = areaMgr.tick(px, pz); if (az) { st.points = Math.max(0, st.points + az.pts); if (az.msg) { sfx.done(); hud.whisper(az.msg, 6, true); } }
+    const az = areaMgr.tick(px, pz); if (az) { if (/sand|beach|push/i.test(az.msg ?? '')) passport.give('beach'); if (/jet ?ski/i.test(az.msg ?? '')) passport.give('jetski'); st.points = Math.max(0, st.points + az.pts); if (az.msg) { sfx.done(); hud.whisper(az.msg, 6, true); } }
     boats.update(dt, day.dark); cows.update(dt); areaMgr.update(dt, performance.now() / 1000, px, pz);
     // the shop the child is standing by
     shopT -= dt;
@@ -468,6 +498,7 @@ async function start() {
     }
     if (cardT > 0) { cardT -= dt; if (cardT <= 0) card.style.display = 'none'; }
     const q = quests.update(dt, px, pz);
+    if (q && q.msg.length > 40) { helped++; passport.give('help1'); if (helped >= 3) passport.give('help3'); }
     if (q) { st.points += q.pts; const big = q.msg.length > 40; (big ? sfx.done : sfx.pick)(); hud.whisper(q.msg, big ? 9 : 2); }
 
     // the view: held keys turn it steadily, the mouse turns it as it is dragged, it zooms in steps
@@ -498,7 +529,7 @@ async function start() {
     inkT -= dt;
     if (inkT <= 0) { inkT = 0.5; for (const gr of [traffic.group, people.group, quests.group]) toonify(gr, [gr], () => false); }
     const seen = places2.update(px, pz, rig.camera, performance.now() / 1000);
-    if (seen) { st.points += 5; hud.whisper(`${seen.name}! ${seen.note}`, 6); }
+    if (seen) { st.points += 5; hud.whisper(`${seen.name}! ${seen.note}`, 6); passport.give('p:' + seen.name); }
     // performance: hide what is far away (trees by map square, and small things one by one); the haze hides the rest
     cullT -= dt;
     if (cullT <= 0) {
@@ -512,6 +543,29 @@ async function start() {
       for (const gr of smallStuff) for (const o of gr.children) o.visible = Math.hypot(o.position.x - px, o.position.z - pz) < near || o.position.lengthSq() === 0;
     }
     look.render();
+    // the things you can tap, a few times a second
+    bubT -= dt;
+    if (bubT <= 0) {
+      bubT = 0.2;
+      const on = !drive.riding && !traffic.riding && !bikes.riding && !held && !map.isBig, list: (Thing & { d: number })[] = [];
+      if (on) {
+        const add = (key: string, x: number, z: number, icon: string, label: string, act: () => void, h = 3) => { const d2 = Math.hypot(x - px, z - pz); if (d2 < 18) list.push({ key, x, z, y: g.heightAt(x, z) + h, icon, label, act, d: d2 }); };
+        const go = (x: number, z: number, then: () => void) => { walkTo = { x, z, then }; };
+        quests.waiting.forEach((q, i) => add('q' + i, q.at!.x, q.at!.z, '!', 'Help', () => go(q.at!.x, q.at!.z, () => talk(q.at!)), 3.6));
+        for (const p of people.list) if (p.phase !== 'home' && !quests.waiting.some(q => Math.hypot(q.at!.x - p.x, q.at!.z - p.z) < 3)) add('p' + p.c.name, p.x, p.z, '💬', p.c.name.split(' ')[0].replace(/^(Mrs?\.|Mr\.|Fr\.|Dr\.)$/, p.c.name.split(' ')[1] ?? ''), () => go(p.x, p.z, () => talk(p)), 3.2);
+        for (const t of touts.list) add('t' + t.shop.name, t.x, t.z, '₹', 'Deals', () => go(t.x, t.z, () => talk(t)), 3.2);
+        for (const a of pets.list) if (a !== pets.mine) add('a' + a.hx + ',' + a.hz, a.x, a.z, '🍪', a.kind === 'dog' ? 'Feed' : 'Cat', () => go(a.x, a.z, () => talk(a)), 1.8);
+        const car = drive.near(px, pz, 14); if (car) add('car', car.x, car.z, '🚗', 'Drive', () => go(car.x, car.z, () => lift()), 2.6);
+      }
+      list.sort((a, b) => a.d - b.d); bubbles.set(list.slice(0, 6));
+      // stamps for places reached, the night, a car pushed out of the sand, the jet ski
+      if (night) passport.give('night');
+    }
+    bubbles.update(rig.camera);
+    if (st.points > lastPts) { const v = child.obj.position.clone(); v.y += 3; v.project(rig.camera); bubbles.pop(`+${st.points - lastPts} ⭐`, (v.x * 0.5 + 0.5) * innerWidth, (-v.y * 0.5 + 0.5) * innerHeight); }
+    lastPts = st.points;
+    // the sea, now and then, when it is close
+    waveT -= dt; if (waveT <= 0) { waveT = 3.2; if ([[25, 0], [-25, 0], [0, 25], [0, -25]].some(([a, b]) => g.isWet(px + a, pz + b))) sfx.wave(); }
     const t = quests.target;
     const hint = t && quests.cur?.kind !== 'collect' ? `${Math.round(Math.hypot(t.x - px, t.z - pz) / 10) * 10} m` : '';
     hud.update(dt, renderer, { points: st.points, time: day.label + (night ? ' · night' : ''), placeName: nd < 400 ? near : '', objective: quests.objective, riding: !!traffic.riding || !!drive.riding, hint });

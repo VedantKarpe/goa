@@ -87,6 +87,34 @@
   #town::after { content: ' ▸'; }
   body.whats #town, #map.big ~ #town { display: none; }
   @media (max-width: 700px) { #town { top: 154px; width: 120px; font-size: 12px; } #mapBtn { width: 124px; height: 124px; } }
+  /* the tap bubbles over things, speech bubbles, +points */
+  .bub { position: fixed; left: 0; top: 0; pointer-events: auto; display: flex; align-items: center; gap: 4px; padding: 3px 9px 3px 4px; border-radius: 999px; border: 2px solid rgba(255,255,255,.9); background: rgba(14,20,36,.88); color: #fff4d8; font: 700 12.5px Mukta, sans-serif; cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,.35); touch-action: manipulation; }
+  .bub i { font-style: normal; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #fff4d8; color: #0a1020; font-size: 15px; }
+  .bub.help { border-color: #f2c230; animation: bubpulse 1.2s ease-in-out infinite; } .bub.help i { background: #f2c230; font-weight: 900; }
+  @keyframes bubpulse { 50% { box-shadow: 0 0 0 6px rgba(242,194,48,.35); } }
+  .speech { position: fixed; left: 0; top: 0; max-width: min(72vw, 300px); padding: 8px 12px; border-radius: 14px; background: #fff8e8; color: #2a1e14; font: 600 14px/1.35 Mukta, sans-serif; box-shadow: 0 4px 14px rgba(0,0,0,.35); pointer-events: none; }
+  .speech::after { content: ''; position: absolute; left: 50%; bottom: -8px; margin-left: -8px; border: 8px solid transparent; border-bottom: 0; border-top-color: #fff8e8; }
+  .pop { position: fixed; transform: translate(-50%, -50%); font: 800 20px Mukta, sans-serif; color: #f2c230; text-shadow: 0 2px 4px rgba(0,0,0,.6); pointer-events: none; animation: popup 1.4s ease-out forwards; }
+  @keyframes popup { from { opacity: 1; margin-top: 0; } to { opacity: 0; margin-top: -70px; } }
+  /* the first-minute guide, and the joystick until it is known */
+  #guide { position: fixed; z-index: 12; top: 10px; left: 50%; transform: translateX(-50%); width: min(92vw, 460px); display: none; align-items: center; gap: 10px; padding: 9px 10px 9px 12px; border-radius: 14px; background: rgba(14,20,36,.95); border: 2px solid #5fd8c8; color: #fff4d8; font: 600 14.5px/1.3 Mukta, sans-serif; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+  #guide b { flex: 0 0 auto; color: #0a1020; background: #5fd8c8; border-radius: 999px; padding: 1px 8px; font-size: 12px; } #guide span { flex: 1; }
+  #guide button { flex: 0 0 auto; font: 600 12px Mukta, sans-serif; color: #9a9484; background: none; border: 1px solid rgba(236,228,207,.3); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+  #stickGhost { position: fixed; z-index: 3; left: 34px; bottom: 150px; width: 110px; height: 110px; border-radius: 50%; border: 2px dashed rgba(236,228,207,.7); background: rgba(10,16,32,.25); pointer-events: none; display: none; }
+  #stickGhost i { position: absolute; left: 33px; top: 33px; width: 44px; height: 44px; border-radius: 50%; background: rgba(236,228,207,.6); animation: stickhint 2s ease-in-out infinite; }
+  #stickGhost span { position: absolute; left: 0; right: 0; bottom: -22px; text-align: center; color: #fff4d8; font: 600 12px Mukta, sans-serif; text-shadow: 0 1px 3px #000; }
+  @keyframes stickhint { 25% { transform: translate(0, -24px); } 50% { transform: translate(22px, 0); } 75% { transform: translate(0, 18px); } }
+  /* the passport */
+  #passport { position: fixed; inset: 6vh 50% auto auto; transform: translateX(50%); width: min(94vw, 560px); max-height: 82vh; display: none; flex-direction: column; background: rgba(14,20,36,.97); border: 1px solid rgba(242,194,48,.5); border-radius: 14px; z-index: 30; color: var(--ink); }
+  #passport.open { display: flex; } #passport .ph { padding: 14px 16px 8px; position: relative; } #passport h2 { margin: 0; font-size: 20px; color: var(--lamp); } #passport .ph span { color: var(--muted); font-size: 13px; }
+  #passport .x { position: absolute; right: 10px; top: 10px; background: none; border: 0; color: var(--ink); font-size: 18px; cursor: pointer; } #passport .pl { overflow: auto; padding: 4px 12px 14px; }
+  #passport .sec { color: var(--muted); font-size: 12px; letter-spacing: .05em; text-transform: uppercase; margin: 10px 2px 6px; }
+  #passport .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+  #passport .st { border: 1px dashed rgba(236,228,207,.25); border-radius: 10px; padding: 8px 4px; text-align: center; opacity: .5; } #passport .st.got { opacity: 1; border: 2px solid #f2c230; background: rgba(242,194,48,.08); }
+  #passport .st i { display: block; font-style: normal; font-size: 24px; } #passport .st span { display: block; font-size: 11.5px; line-height: 1.2; margin-top: 3px; }
+  #stampToast { position: fixed; z-index: 31; left: 50%; top: 64px; transform: translate(-50%, -20px); opacity: 0; display: flex; gap: 10px; align-items: center; padding: 8px 14px; border-radius: 14px; background: #fff4d8; color: #2a1e14; border: 2px solid #f2c230; font: 14px Mukta, sans-serif; pointer-events: none; }
+  #stampToast i { font-style: normal; font-size: 24px; } #stampToast b { display: block; color: #a8432a; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  #stampToast.on { animation: stamp 3s ease forwards; } @keyframes stamp { 10% { opacity: 1; transform: translate(-50%, 0) scale(1.05); } 18% { transform: translate(-50%, 0) scale(1); } 80% { opacity: 1; } to { opacity: 0; transform: translate(-50%, 0); } }
   .act button.hot { border-color: #5fd8c8; color: #0a1020; background: #5fd8c8; }
   /* phones: one compact row of actions along the bottom (the ones you use most first), four slim camera buttons in a
      column on the right, the map credit small and out of the way */
@@ -97,7 +125,7 @@
     .act { left: 6px; right: 6px; bottom: 20px; gap: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
     .act::-webkit-scrollbar { display: none; }
     .act button { height: 38px; padding: 0 11px; font-size: 13px; flex: 0 0 auto; }
-    #bTalk { order: 1; } #bLift { order: 2; } #bAuto { order: 2; } #bWhat { order: 3; } #bShare { order: 5; }
+    #bTalk { order: 1; } #bLift { order: 2; } #bAuto { order: 2; } #bWhat { order: 3; } #bPass { order: 4; } #bShare { order: 5; }
     #bTalk, #bLift { font-size: 14px; padding: 0 15px; }
     .btns { flex-direction: column; right: 6px; bottom: 70px; gap: 6px; }
     .btns button { width: 38px; height: 38px; font-size: 14px; }
@@ -123,7 +151,7 @@
   <canvas id="map" title="Map of Panjim (tap to open)"></canvas>
   <div class="hud" id="help">WASD: walk · Shift: run · click, then move the mouse: look around (Esc frees it) · Q/E, Z/X: turn · wheel/±: zoom · T: talk · F: lift · L: torch · [ ]: tilt · 0: reset view · P: places · M: map · N: skip to night/day</div>
   <button id="mapX" aria-label="Close the map">✕ Close</button><button id="mapBtn" aria-label="Open the map of this town"></button><button id="town" aria-label="Open the map of this town"></button><div id="stick"><i></i></div><div id="places"></div><div id="arrow"></div>
-  <div class="act"><button id="bAuto" style="display:none">Auto drive</button><button id="bWhat">What's on</button><button id="bShare" style="border-color:rgba(95,216,200,.6);color:#a8f0e6">Share your story</button><button id="bTalk">Talk</button><button id="bLift">Lift</button></div>
+  <div class="act"><button id="bAuto" style="display:none">Auto drive</button><button id="bWhat">What's on</button><button id="bPass">🛂 Passport</button><button id="bShare" style="border-color:rgba(95,216,200,.6);color:#a8f0e6">Share your story</button><button id="bTalk">Talk</button><button id="bLift">Lift</button></div>
   <div class="vignette"></div>
   <div class="btns"><button id="bHome" aria-label="Reset the view" title="Reset the view (0)">⌂</button><button id="bTiltD" aria-label="Tilt down">⤓</button><button id="bTiltU" aria-label="Tilt up">⤒</button><button id="bL" aria-label="Turn left">⟲</button><button id="bR" aria-label="Turn right">⟳</button><button id="bOut" aria-label="Zoom out">−</button><button id="bIn" aria-label="Zoom in">+</button></div>
   <script type="module" src="/src/main.ts"></script>

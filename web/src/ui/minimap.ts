@@ -72,6 +72,8 @@ export class Minimap {
   onOpen: () => void = () => {};
   /** The town the child is in (drawn on the big map's corner), and how far around them the town is loaded (metres). */
   town = ''; loadedR = 0;
+  /** Things to do, as icons on the big map (the jet ski, stuck cars on the beach, the churches...). */
+  activities: { x: number; z: number; icon: string; name: string }[] = [];
   /** While What's on is open, a tap on empty map does not close it. */
   stayOpen = false;
   onClose: () => void = () => {};
@@ -164,6 +166,16 @@ export class Minimap {
     if (this.big && this.loadedR > 0) {
       c.save(); c.setLineDash([6, 5]); c.strokeStyle = 'rgba(159,232,214,.75)'; c.lineWidth = 2;
       c.beginPath(); c.arc(ox + (cx / T) * k, oy + (cz / T) * k, this.loadedR / T * k, 0, Math.PI * 2); c.stroke(); c.restore();
+    }
+    if (this.big) {
+      c.textAlign = 'center'; c.textBaseline = 'middle';
+      for (const a of this.activities) {
+        const x = ox + (a.x / T) * k, y = oy + (a.z / T) * k; if (x < -20 || y < -20 || x > W + 20 || y > H + 20) continue;
+        c.fillStyle = 'rgba(255,248,232,.92)'; c.beginPath(); c.arc(x, y, 13, 0, Math.PI * 2); c.fill(); c.strokeStyle = '#0a1020'; c.lineWidth = 1.5; c.stroke();
+        c.font = '15px sans-serif'; c.fillStyle = '#000'; c.fillText(a.icon, x, y + 1);
+        if (k > 1.2) { c.font = '700 11px Mukta, sans-serif'; c.fillStyle = '#fff4d8'; c.strokeStyle = 'rgba(10,16,32,.85)'; c.lineWidth = 3; c.strokeText(a.name, x, y + 22); c.fillText(a.name, x, y + 22); }
+      }
+      c.textBaseline = 'alphabetic';
     }
     if (this.big && this.town) { c.font = '700 16px Mukta, sans-serif'; const w = c.measureText(this.town).width; c.fillStyle = 'rgba(10,16,32,.8)'; c.fillRect(10, 10, w + 18, 26); c.fillStyle = '#f2c230'; c.textAlign = 'left'; c.fillText(this.town, 19, 29); }
     // the child, and which way the view looks (the camera looks along -(cos yaw, sin yaw))

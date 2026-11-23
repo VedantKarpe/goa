@@ -67,8 +67,8 @@ export class Drive {
   }
 
   /** The nearest car you could get into: a taxi, a car you left somewhere, or any car parked on the kerb. */
-  near(px: number, pz: number): Car | ParkedCar | null {
-    let best: Car | ParkedCar | null = null, bd = 7;
+  near(px: number, pz: number, r = 7): Car | ParkedCar | null {
+    let best: Car | ParkedCar | null = null, bd = r;
     for (const c of this.list) { const d = Math.hypot(c.x - px, c.z - pz); if (d < bd) { bd = d; best = c; } }
     for (const c of this.kerb) { if (!c.mesh) continue; const d = Math.hypot(c.x - px, c.z - pz); if (d < bd) { bd = d; best = c; } }
     return best;
