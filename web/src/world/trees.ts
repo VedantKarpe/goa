@@ -42,7 +42,7 @@ function palmGeo(): THREE.BufferGeometry {
  *  rounded crown of several soft clumps. */
 /** A round crown clump, shaded light on top and darker underneath like a painted tree. */
 function clump(r: number, x: number, y: number, z: number, hex: number): THREE.BufferGeometry {
-  const g = new THREE.IcosahedronGeometry(r, 2).scale(1.08, 0.94, 1.08).translate(x, y, z).toNonIndexed(), p = g.attributes.position, c = new THREE.Color(hex), a = new Float32Array(p.count * 3);
+  const g = new THREE.IcosahedronGeometry(r, 1).scale(1.08, 0.94, 1.08).translate(x, y, z).toNonIndexed(), p = g.attributes.position, c = new THREE.Color(hex), a = new Float32Array(p.count * 3);
   for (let i = 0; i < p.count; i++) { const k = 0.8 + 0.32 * Math.max(0, Math.min(1, (p.getY(i) - (y - r)) / (2 * r))); a[i * 3] = c.r * k; a[i * 3 + 1] = c.g * k; a[i * 3 + 2] = c.b * k; }
   g.setAttribute('color', new THREE.BufferAttribute(a, 3)); g.deleteAttribute('uv'); return g;
 }

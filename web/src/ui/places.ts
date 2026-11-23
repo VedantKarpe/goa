@@ -81,10 +81,16 @@ export class Places {
     const p = this.target;
     this.beam.position.set(p.x, this.g.heightAt(p.x, p.z) + 60, p.z); (this.beam.material as THREE.MeshBasicMaterial).opacity = 0.22 + Math.sin(t * 3) * 0.08;
     // the arrow: where on screen the target is, pinned to the edge when it is off screen
-    const v = new THREE.Vector3(p.x, this.g.heightAt(p.x, p.z) + 4, p.z).project(camera);
-    let sx = v.x, sy = -v.y; if (v.z > 1) { sx = -sx; sy = -sy; }
-    const on = Math.abs(sx) < 0.9 && Math.abs(sy) < 0.85 && v.z < 1;
-    const k = on ? 1 : 0.85 / Math.max(Math.abs(sx), Math.abs(sy) / 0.8);
+    const wp = new THREE.Vector3(p.x, this.g.heightAt(p.x, p.z) + 4, p.z), v = wp.clone().project(camera);
+    const on = v.z < 1 && Math.abs(v.x) < 0.9 && Math.abs(v.y) < 0.85;
+    let sx = v.x, sy = -v.y;
+    if (!on) {
+      // off screen (or behind): point along the ground bearing from the view, ahead = up, behind = down. The projection
+      // of a point behind the camera flips and stretches, which made the arrow point the wrong way.
+      const c = wp.applyMatrix4(camera.matrixWorldInverse);   // x right, z towards the viewer
+      const L = Math.hypot(c.x, c.z) || 1; sx = c.x / L; sy = c.z / L;
+    }
+    const k = on ? 1 : 0.85 / Math.max(Math.abs(sx), Math.abs(sy) / 0.8, 1e-3);
     const W = innerWidth, H = innerHeight, px = (sx * k * 0.5 + 0.5) * W, py = (sy * k * 0.5 + 0.5) * H;
     const d = Math.round(Math.hypot(p.x - cx, p.z - cz) / 10) * 10;
     this.arrow.style.display = 'block';

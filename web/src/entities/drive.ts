@@ -4,11 +4,10 @@
 import * as THREE from 'three';
 import { buildCar, type CarModel } from './cars';
 import type { Network } from '../world/network';
+import type { ParkedCar } from '../world/streetlife';
 
 interface Car { obj: THREE.Group; wheels: THREE.Object3D[]; x: number; z: number; h: number; taxi: boolean }
 
-const MODELS: CarModel[] = ['swift', 'alto', 'wagonr', 'i20', 'creta'];
-const COLS = [0xf2f2ee, 0xb8bcc4, 0x8a2a2a, 0x2a4a8a, 0x3a3a3e, 0xd8c8a0];
 
 function rng(seed: number) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
@@ -19,17 +18,21 @@ export class Drive {
   /** Speed (m/s, + forward). */
   v = 0;
 
-  constructor(net: Network, ground: (x: number, z: number) => number, free: (x: number, z: number) => boolean) {
+  /** Every car parked along the kerbs (the street scenery): any of them can be driven away. */
+  private kerb: ParkedCar[];
+
+  constructor(net: Network, private ground: (x: number, z: number) => number, free: (x: number, z: number) => boolean, kerb: ParkedCar[] = []) {
+    this.kerb = kerb;
     this.group.name = 'parked cars';
     const rnd = rng(77);
     const E = net.edges;
-    for (let i = 0; i < E.length && this.list.length < 90; i += 1 + Math.floor(rnd() * 9)) {
+    for (let i = 0; i < E.length && this.list.length < 40; i += 1 + Math.floor(rnd() * 14)) {
       const e = E[i]; if (e.width < 7 || e.len < 40) continue;
       const p = net.at(i, e.len * (0.3 + rnd() * 0.4)), side = rnd() < 0.5 ? -1 : 1, off = e.width / 2 - 1.3;
       const x = p.x + p.dz * off * side, z = p.z - p.dx * off * side;
       if (!free(x, z)) continue;
-      const taxi = rnd() < 0.35, model = taxi ? 'innova' as CarModel : MODELS[Math.floor(rnd() * MODELS.length)];
-      const c = buildCar(model, taxi ? 0x161616 : COLS[Math.floor(rnd() * COLS.length)], 'private', { spinWheels: true });
+      const taxi = true, model = 'innova' as CarModel;   // the kerbs already hold the ordinary cars: these are the taxi ranks
+      const c = buildCar(model, 0x161616, 'private', { spinWheels: true }); c.obj.scale.setScalar(1.6);
       if (taxi) {   // a Goan tourist taxi: black with a yellow top, and the TAXI board
         const top = new THREE.Mesh(new THREE.BoxGeometry(c.len * 0.5, 0.06, 1.5), new THREE.MeshLambertMaterial({ color: 0xf2c230 }));
         top.position.y = 1.86; c.obj.add(top);
@@ -42,13 +45,25 @@ export class Drive {
     }
   }
 
-  near(px: number, pz: number): Car | null {
-    let best: Car | null = null, bd = 6;
+  /** The nearest car you could get into: a taxi, a car you left somewhere, or any car parked on the kerb. */
+  near(px: number, pz: number): Car | ParkedCar | null {
+    let best: Car | ParkedCar | null = null, bd = 7;
     for (const c of this.list) { const d = Math.hypot(c.x - px, c.z - pz); if (d < bd) { bd = d; best = c; } }
+    for (const c of this.kerb) { if (!c.mesh) continue; const d = Math.hypot(c.x - px, c.z - pz); if (d < bd) { bd = d; best = c; } }
     return best;
   }
 
-  enter(c: Car) { this.riding = c; this.v = 0; }
+  /** Take a kerbside car: it leaves the street scenery and becomes a car of its own you can drive. */
+  private take(pc: ParkedCar): Car {
+    const pos = pc.mesh!.geometry.attributes.position as THREE.BufferAttribute;
+    for (let i = pc.start; i < pc.start + pc.count; i++) pos.setXYZ(i, pc.x, -60, pc.z);   // fold it away out of sight
+    pos.needsUpdate = true; pc.mesh = null;
+    const c = buildCar(pc.model, pc.col, 'private', { spinWheels: true }); c.obj.scale.setScalar(1.6);
+    c.obj.position.set(pc.x, this.ground(pc.x, pc.z), pc.z); c.obj.rotation.y = -pc.h; this.group.add(c.obj);
+    const car: Car = { obj: c.obj, wheels: c.wheels, x: pc.x, z: pc.z, h: pc.h, taxi: false }; this.list.push(car); return car;
+  }
+
+  enter(c: Car | ParkedCar): Car { const car = 'obj' in c ? c : this.take(c); this.riding = car; this.v = 0; return car; }
 
   /** Get out: the spot beside the driver's door. */
   park(): { x: number; z: number } | null {

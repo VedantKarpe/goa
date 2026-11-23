@@ -28,7 +28,7 @@ import { Boats } from './entities/boats';
 import { Pumps } from './entities/pumps';
 import { Bikes } from './entities/bikes';
 import { toonify as toonifyOld } from './world/toon';
-import { Look, NEW_LOOK } from './world/look';
+import { Look, NEW_LOOK, LIGHT } from './world/look';
 // the cartoon look (cel bands, ink outlines) only in the old look
 const toonify: typeof toonifyOld = (...a) => { if (!NEW_LOOK) toonifyOld(...a); };
 import { infill } from './world/infill';
@@ -61,7 +61,7 @@ async function start() {
   scene.background = new THREE.Color(0x9cc3d8);
   const hemi = new THREE.HemisphereLight(0xcfe3f5, 0x6a5a38, 1.1);
   const sun = new THREE.DirectionalLight(0xfff1d6, 2.2);
-  sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+  sun.castShadow = true; sun.shadow.mapSize.set(LIGHT ? 1024 : 2048, LIGHT ? 1024 : 2048);   // phones: a smaller shadow map (heat)
   Object.assign(sun.shadow.camera, { left: -160, right: 160, top: 160, bottom: -160, near: 1, far: 900 });
   sun.shadow.bias = -0.0015; sun.shadow.normalBias = 1.4;   // no striping on the ground when the sun is low
   scene.add(hemi, sun, sun.target);
@@ -120,7 +120,7 @@ async function start() {
   if (!move.free(px, pz)) for (let r = 2; r < 200 && !move.free(px, pz); r += 2) { px = (92 + OX) * T + r; }
 
   const net = new Network(d, g);
-  scene.add(buildStreetLife(net, g, (x, z) => move.free(x, z) && (si.at(x, z)?.deck ?? null) === null));   // nothing parked on a flyover or its ramps
+  const streetLife = buildStreetLife(net, g, (x, z) => move.free(x, z) && (si.at(x, z)?.deck ?? null) === null); scene.add(streetLife.group);   // nothing parked on a flyover or its ramps
   const traffic = new Traffic(net, g, 48); scene.add(traffic.group);
   const signals = new Signals(net, g, (x, z) => bi.solid(x, z, 1.2)); scene.add(signals.group); traffic.signals = signals;
   const people = new People(net, g, d); scene.add(people.group);
@@ -184,7 +184,7 @@ async function start() {
     if (!map.openEvents()) hud.whisper('Nothing on just now, baba. Check again in a few days!', 4);
   });
   const pets = new Pets(net, (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z) && !si.at(x, z)); scene.add(pets.group);
-  const drive = new Drive(net, (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z)); scene.add(drive.group);
+  const drive = new Drive(net, (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z), streetLife.parked); scene.add(drive.group);
   const boats = new Boats(g, d.casinos ?? []); scene.add(boats.group);
   const pumps = new Pumps(net, g, (x, z) => !bi.solid(x, z, 9) && !g.isWet(x, z) && !si.at(x, z)); scene.add(pumps.group);
 
@@ -201,7 +201,7 @@ async function start() {
   const lift = () => {
     if (drive.riding) { const o = drive.park(); if (o && move.free(o.x, o.z)) { px = o.x; pz = o.z; } child.obj.visible = true; pets.hopOut(px, pz); hud.whisper('Parked. Pull the handbrake, baba, this is Goa, everything rolls downhill.', 3); return; }
     const car = traffic.riding || bikes.riding ? null : drive.near(px, pz);
-    if (car) { drive.enter(car); rig.driveView(); child.obj.visible = false; hud.whisper(car.taxi ? 'Taxi uncle is having tea, he says take it, bring it back full tank! W to go, S to brake, A/D to steer, H to honk.' : 'Keys in the ignition! W to go, S to brake, A/D to steer, H to honk. Drive slow, no?', 6); return; }
+    if (car) { const cc = drive.enter(car); rig.driveView(); child.obj.visible = false; hud.whisper(cc.taxi ? 'Taxi uncle is having tea, he says take it, bring it back full tank! W to go, S to brake, A/D to steer, H to honk.' : 'Keys in the ignition! W to go, S to brake, A/D to steer, H to honk. Drive slow, no?', 6); return; }
     if (bikes.riding) { bikes.park(px, pz); hud.whisper('Parked. Lock it, no? Somebody will take it otherwise.', 2); return; }
     const bk = traffic.riding ? null : bikes.near(px, pz);
     if (bk) { bikes.mount(bk); hud.whisper(bk.kind === 'scooter' ? 'Vroom! Keys were in it only. Go slow near the church, men.' : 'Tring tring! Pedal, baba, pedal!', 3); return; }
@@ -257,6 +257,21 @@ async function start() {
   };
   card.addEventListener('click', () => { card.style.display = 'none'; cardT = 0; });
   const clock = new THREE.Clock();
+  // the lamp posts and signals are instanced over the whole map (17,000 lamps): draw only the ones near the child,
+  // refreshed as they move (copying the nearby instances to the front and drawing just those)
+  const instCull: THREE.InstancedMesh[] = [];
+  for (const name of ['street lights', 'signals']) scene.getObjectByName(name)?.traverse(o => { const m = o as THREE.InstancedMesh; if (m.isInstancedMesh && m.count > 400 && !m.instanceColor) instCull.push(m); });   // (lamp heads and glow pools are recoloured by index at dusk: left whole)
+  let instAt: [number, number] = [-1e9, -1e9];
+  const cullInstances = (r: number) => {
+    if (Math.hypot(px - instAt[0], pz - instAt[1]) < 40) return; instAt = [px, pz];
+    for (const m of instCull) {
+      const u = m.userData as { all?: Float32Array; n?: number; col?: Float32Array };
+      if (!u.all) { u.all = (m.instanceMatrix.array as Float32Array).slice(); u.n = m.count; u.col = m.instanceColor ? (m.instanceColor.array as Float32Array).slice() : undefined; }
+      const src = u.all, dst = m.instanceMatrix.array as Float32Array, cd = m.instanceColor?.array as Float32Array | undefined; let k = 0;
+      for (let i = 0; i < u.n!; i++) { const dx = src[i * 16 + 12] - px, dz = src[i * 16 + 14] - pz; if (dx * dx + dz * dz < r * r) { dst.set(src.subarray(i * 16, i * 16 + 16), k * 16); if (cd && u.col) cd.set(u.col.subarray(i * 3, i * 3 + 3), k * 3); k++; } }
+      m.count = k; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    }
+  };
   let mapT = 0, shopT = 0, cowSaid = false, cullT = 0;
   const smallStuff = [bikes.group, cows.group, pumps.group, traffic.group, drive.group, pets.group];   // (people show and hide themselves)
   const shopTag = document.createElement('div'); shopTag.id = 'shopTag'; document.body.appendChild(shopTag);
@@ -275,14 +290,15 @@ async function start() {
   let dayNo = 0;   // days this visit (nothing is saved)
   const startDay = (first: boolean, before = '') => {
     const pool = d.places.filter(q => STARTS.includes(q[0]) || q[0] === 'Miramar'), pick = pool[Math.floor(Math.random() * pool.length)];
-    const name = pick?.[0] ?? 'Church Square', p = pick;
+    let name = pick?.[0] ?? 'Church Square'; const p = first ? pick : null;
+    if (!first) { let nd = 1e9; for (const q of d.places) { const dd = Math.hypot(q[1] * T - px, q[2] * T - pz); if (dd < nd) { nd = dd; name = q[0]; } } }   // morning finds you where you are
     if (p) {
       let x = p[1] * T, z = p[2] * T;
       for (let r = 0; r < 300 && !move.free(x, z); r += 3) { x = p[1] * T + Math.cos(r) * r; z = p[2] * T + Math.sin(r) * r; }
       if (move.free(x, z)) { if (traffic.riding) traffic.hopOff(); if (bikes.riding) bikes.park(px, pz); px = x; pz = z; }
     }
     const task = quests.startDay(Math.floor(Math.random() * 4));
-    hud.whisper(`${before}${first ? 'Good afternoon' : 'Good morning'}, baba! Day ${dayNo + 1}: you are in ${name} today. ${task ?? ''}`, 10, true);
+    hud.whisper(first ? `${before}Good afternoon, baba! Day ${dayNo + 1}: you are in ${name} today. ${task ?? ''}` : `${before}Good morning, baba! Day ${dayNo + 1}, near ${name}. ${task ?? ''}`, 10, true);
   };
   places2.onTravel = async p => {
     let x = p.x, z = p.z;
@@ -384,6 +400,8 @@ async function start() {
     // the shop the child is standing by
     shopT -= dt;
     if (shopT <= 0) {
+      const lb = document.getElementById('bLift')!, lt = drive.riding ? 'Park' : bikes.riding ? 'Get off' : traffic.riding ? 'Get off' : drive.near(px, pz) ? '🚗 Drive' : bikes.near(px, pz) ? 'Ride' : 'Lift';
+      if (lb.textContent !== lt) { lb.textContent = lt; lb.classList.toggle('hot', lt === '🚗 Drive'); }
       shopT = 0.4; let nm = '';
       for (const s of shops.list) if (Math.hypot(s.x - px, s.z - pz) < 12) { nm = s.name; break; }
       shopTag.textContent = nm; shopTag.style.display = nm ? 'block' : 'none';
@@ -434,8 +452,9 @@ async function start() {
       cullT = 0.3;
       areaMgr.refresh(px, pz);
       const far = fog.far + 150, near = 320;
-      cullChunks(blds.group, px, pz, far); cullChunks(terrain, px, pz, far + 100);   // building squares beyond the haze
-      const treeFar = NEW_LOOK ? Math.min(far + 170, 700) : far + 170;   // the new look's fuller trees: drawn out to where the haze takes them
+      cullInstances(LIGHT ? 380 : 520);
+      cullChunks(blds.group, px, pz, far); cullChunks(streetLife.group, px, pz, Math.min(far, NEW_LOOK ? 600 : far)); cullChunks(terrain, px, pz, far + 100);   // building squares beyond the haze
+      const treeFar = NEW_LOOK ? Math.min(far + 170, LIGHT ? 420 : 700) : far + 170;   // the new look's fuller trees: drawn out to where the haze takes them
       for (const m of treeGroup.children) { const c = m.userData.cell as [number, number] | undefined; if (c) m.visible = Math.hypot(c[0] - px, c[1] - pz) < treeFar; }
       for (const gr of smallStuff) for (const o of gr.children) o.visible = Math.hypot(o.position.x - px, o.position.z - pz) < near || o.position.lengthSq() === 0;
     }
@@ -447,11 +466,14 @@ async function start() {
   (window as unknown as { rkFrame: (dt: number) => void }).rkFrame = frame;   // for tests: run one frame by hand
   // adaptive resolution: draw fewer pixels when frames run slow, more when there is room, so it stays smooth
   let pr = renderer.getPixelRatio(), slow = 0, fast = 0;
-  const maxPR = Math.min(2, Math.max(1.5, devicePixelRatio)), minPR = Math.min(1.25, devicePixelRatio);   // never so low it looks blurry
+  const maxPR = LIGHT ? Math.min(1.5, devicePixelRatio) : Math.min(2, Math.max(1.5, devicePixelRatio)), minPR = Math.min(1.25, devicePixelRatio);   // never so low it looks blurry
+  // phones: 30 frames a second is smooth enough here and runs the GPU half as hard (they were getting hot)
+  let acc = 0;
   renderer.setAnimationLoop(() => {
-    const dt = clock.getDelta();
+    if (LIGHT) { acc += clock.getDelta(); if (acc < 1 / 31) return; }
+    const dt = LIGHT ? acc : clock.getDelta(); acc = 0;
     frame(Math.min(0.05, dt));
-    if (dt > 1 / 28) { slow++; fast = 0; } else if (dt < 1 / 57) { fast++; slow = 0; }
+    if (dt > (LIGHT ? 1 / 22 : 1 / 28)) { slow++; fast = 0; } else if (dt < (LIGHT ? 1 / 29 : 1 / 57)) { fast++; slow = 0; }
     if (slow > 60 && look.degrade()) slow = 0;   // too slow: first drop an effect, then draw fewer pixels
     if (slow > 60 && pr > minPR) { pr = Math.max(minPR, pr - 0.25); renderer.setPixelRatio(pr); resize(); slow = 0; }
     if (fast > 180 && pr < maxPR) { pr = Math.min(maxPR, pr + 0.25); renderer.setPixelRatio(pr); resize(); fast = 0; }

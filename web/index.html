@@ -67,7 +67,25 @@
   <div id="app"></div>
   <!-- required by the Open Database License: the map is built from OpenStreetMap data -->
   <a id="credit" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" style="position:fixed;left:50%;bottom:4px;transform:translateX(-50%);z-index:30;font:500 11px system-ui,sans-serif;color:#fff;background:rgba(0,0,0,.38);padding:2px 8px;border-radius:6px;text-decoration:none;white-space:nowrap">Map data © OpenStreetMap contributors<span class="long"> · Elevation: NASA SRTM</span></a>
-  <style>@media (max-width: 700px) { #credit { bottom: 144px !important; font-size: 10px !important; } #credit .long { display: none; } }</style>
+  <style>
+  .act button.hot { border-color: #5fd8c8; color: #0a1020; background: #5fd8c8; }
+  /* phones: one compact row of actions along the bottom (the ones you use most first), four slim camera buttons in a
+     column on the right, the map credit small and out of the way */
+  @media (max-width: 700px) {
+    #credit { bottom: 4px !important; left: 8px !important; transform: none !important; font-size: 9px !important; opacity: .65; padding: 1px 6px !important; }
+    #credit .long { display: none; }
+    #perf { display: none; }
+    .act { left: 6px; right: 6px; bottom: 20px; gap: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+    .act::-webkit-scrollbar { display: none; }
+    .act button { height: 38px; padding: 0 11px; font-size: 13px; flex: 0 0 auto; }
+    #bTalk { order: 1; } #bLift { order: 2; } #bWhat { order: 3; } #bPlaces { order: 4; } #bShare { order: 5; }
+    #bTalk, #bLift { font-size: 14px; padding: 0 15px; }
+    .btns { flex-direction: column; right: 6px; bottom: 70px; gap: 6px; }
+    .btns button { width: 38px; height: 38px; font-size: 14px; }
+    #bHome, #bTiltD, #bTiltU { display: none; }
+    #say { font-size: 14.5px !important; padding: 8px 12px !important; }
+  }
+</style>
   <div id="loading">Loading Panjim…</div>
   <div class="hud" id="stats"></div>
   <div class="hud" id="place"></div>
