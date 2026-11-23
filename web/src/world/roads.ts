@@ -56,7 +56,7 @@ function offsetLine(line: [number, number][], d: number): [number, number][] {
 
 export function buildRoads(d: PanjimData, g: Ground): { group: THREE.Group; segs: Seg[] } {
   const group = new THREE.Group(); group.name = 'roads';
-  const pave: number[] = [], paveI: number[] = [], asph: number[] = [], asphI: number[] = [], path: number[] = [], pathI: number[] = [], dash: number[] = [], dashI: number[] = [], yel: number[] = [], yelI: number[] = [];
+  const pave: number[] = [], paveI: number[] = [], asph: number[] = [], asphI: number[] = [], path: number[] = [], pathI: number[] = [], dash: number[] = [], dashI: number[] = [], yel: number[] = [], yelI: number[] = [], kerb: number[] = [], kerbI: number[] = [], green: number[] = [], greenI: number[] = [];
   const segs: Seg[] = [];
   const profiles = bridgeProfiles(d, g);
   // where roads lie on top of each other (dual carriageways, slip roads, service roads at a big junction), only the
@@ -78,16 +78,61 @@ export function buildRoads(d: PanjimData, g: Ground): { group: THREE.Group; segs
     }
     return false;
   };
+  // divided roads: OpenStreetMap draws each direction of a main road as its own one-way line. Pair each with the one
+  // running the other way beside it (within 35 m) and note how far apart they are and on which side the other lies:
+  // the two halves are sized to fit side by side, with a raised median between them.
+  const pair = new Map<number, { D: number; side: number }>();
+  d.r.forEach(([f, , fl, cl], i) => {
+    if (!(fl & 4) || cl > 7 || cl % 2 === 1 || (fl & 3)) return;   // main roads only, not their slip roads
+    const q = pts(f).map(([x, y]) => [x * T, y * T] as [number, number]); if (q.length < 2) return;
+    const S = resample(q, 20), Ds: number[] = []; let side = 0;
+    for (let k = 0; k < S.length; k++) {
+      const [x, z] = S[k], a = S[Math.max(0, k - 1)], b = S[Math.min(S.length - 1, k + 1)], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, dx = (b[0] - a[0]) / L, dz = (b[1] - a[1]) / L;
+      let best = 1e9, nx = 0, nz = 0;
+      for (let gx = -1; gx <= 1; gx++) for (let gz = -1; gz <= 1; gz++) for (const [ax, az, cx, cz, , rj] of grid.get((Math.floor(x / C) + gx) * 65536 + Math.floor(z / C) + gz) ?? []) {
+        if (rj === i) continue; const o = d.r[rj]; if (!(o[2] & 4) || o[3] > 7 || o[3] % 2 === 1) continue;
+        const vx = cx - ax, vz = cz - az, sl = Math.hypot(vx, vz) || 1; if ((vx * dx + vz * dz) / sl > -0.7) continue;   // only one running the other way
+        const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / (sl * sl))), px = ax + vx * t, pz = az + vz * t, dd = Math.hypot(px - x, pz - z);
+        if (dd < best) { best = dd; nx = px; nz = pz; }
+      }
+      if (best < 35) { Ds.push(best); side += Math.sign((nx - x) * -dz + (nz - z) * dx); }
+    }
+    if (Ds.length && Ds.length >= S.length * 0.5) { Ds.sort((p, q2) => p - q2); pair.set(i, { D: Ds[Ds.length >> 1], side: Math.sign(side) || 1 }); }
+  });
+  const otherHalf = (x: number, z: number, dx: number, dz: number, self: number) => {
+    let best = 1e9;
+    for (let gx = -1; gx <= 1; gx++) for (let gz = -1; gz <= 1; gz++) for (const [ax, az, cx, cz, , rj] of grid.get((Math.floor(x / C) + gx) * 65536 + Math.floor(z / C) + gz) ?? []) {
+      if (rj === self || !pair.has(rj)) continue;
+      const vx = cx - ax, vz = cz - az, sl = Math.hypot(vx, vz) || 1; if ((vx * dx + vz * dz) / sl > -0.7) continue;
+      const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / (sl * sl))); best = Math.min(best, Math.hypot(ax + vx * t - x, az + vz * t - z));
+    }
+    return best;
+  };
+  const MED = 1.8;   // the median: a raised kerb with a planted strip down the middle
+  // the halves are narrower now: the check for 'is this spot on another road' uses their new widths
+  for (const cell of grid.values()) for (const sg of cell) { const pr = pair.get(sg[5]); if (pr) sg[4] = Math.min(sg[4], Math.max(6.5, pr.D - MED) / 2); }
   let ri = -1;
   for (const [f, w, flags, cls, , lanes = 0] of d.r) {
     ri++;
     const line = pts(f).map(([x, y]) => [x * T, y * T] as [number, number]);
     if (line.length < 2) continue;
-    const width = w * ROAD_K, bridge = (flags & 1) !== 0;
+    const pr = pair.get(ri), bridge = (flags & 1) !== 0;
+    const width = pr ? Math.max(6.5, Math.min(w * ROAD_K, pr.D - MED)) : w * ROAD_K;   // a half of a divided road fits beside its other half
     // a bridge is held level: at the height of the higher of its two ends, and never lower than 5 m over the water
     const prof = bridge ? profiles.get(f) ?? null : null;
     const deck: Deck = prof, shift = (k: number): Deck => (prof ? (s: number) => prof(s) + k : null);
-    ribbon(line, width + (width >= 12 ? 5 : 3), g, 0.12, shift(-0.05), pave, paveI);
+    if (!pr) ribbon(line, width + (width >= 12 ? 5 : 3), g, 0.12, shift(-0.05), pave, paveI);
+    else {
+      ribbon(offsetLine(line, -pr.side * (width / 2 + 1.4)), 2.8, g, 0.12, shift(-0.05), pave, paveI);   // the pavement on the outer side only
+      if (!bridge) {   // the median on the inner side: this half's share of the kerb, and of the planted strip
+        const ml = resample(line, 4), ko = offsetLine(line, pr.side * (width / 2 + MED / 4)), go = offsetLine(line, pr.side * (width / 2 + MED / 2 - 0.2));
+        for (let i = 0; i + 1 < ml.length && i + 1 < ko.length && i + 1 < go.length; i++) {
+          const a = ml[i], b = ml[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, oh = otherHalf((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (b[0] - a[0]) / L, (b[1] - a[1]) / L, ri);
+          if (oh > pr.D * 1.35 || oh < width / 2) continue;   // the halves part here (a junction, a slip road): no median
+          ribbon([ko[i], ko[i + 1]], MED / 2, g, 0.36, null, kerb, kerbI); ribbon([go[i], go[i + 1]], 0.4, g, 0.4, null, green, greenI);
+        }
+      }
+    }
     ribbon(line, width, g, 0.2, deck, asph, asphI);
     // road markings as on the real road (OpenStreetMap's type, lanes and one-way), the Indian way:
     //  - the lanes and side streets (residential, service, unclassified): none, as in Goa
@@ -98,12 +143,13 @@ export function buildRoads(d: PanjimData, g: Ground): { group: THREE.Group; segs
     const main = cls <= 7, oneway = (flags & 4) !== 0, round = (flags & 2) !== 0;
     if (main && !round && width >= 6) {
       const L = lanes > 0 ? lanes : oneway ? (cls <= 3 ? 2 : 1) : cls <= 1 ? 4 : 2, lw = width / L;
-      const broken = (off: number) => { const pl = resample(offsetLine(line, off), 3); for (let i = 0; i + 1 < pl.length; i += 3) if (!onOther((pl[i][0] + pl[i + 1][0]) / 2, (pl[i][1] + pl[i + 1][1]) / 2, ri)) ribbon([pl[i], pl[i + 1]], 0.22, g, 0.28, shift(0.05), dash, dashI, i * 3); };
+      const broken = (off: number) => { const pl = resample(offsetLine(line, off), 1.5); for (let i = 0; i + 2 < pl.length; i += 5) if (!onOther((pl[i][0] + pl[i + 2][0]) / 2, (pl[i][1] + pl[i + 2][1]) / 2, ri)) ribbon([pl[i], pl[i + 1], pl[i + 2]], 0.2, g, 0.28, shift(0.05), dash, dashI, i * 1.5); };   // 3 m of line, 4.5 m gap
       const solid = (off: number, P: number[], I: number[], w2 = 0.2) => { const el = resample(offsetLine(line, off), 3); for (let i = 0; i + 1 < el.length; i++) if (!onOther((el[i][0] + el[i + 1][0]) / 2, (el[i][1] + el[i + 1][1]) / 2, ri)) ribbon([el[i], el[i + 1]], w2, g, 0.28, shift(0.05), P, I, i * 3); };
       if (oneway) for (let k = 1; k < L; k++) broken(-width / 2 + k * lw);                          // between the lanes of one direction
       else if (L <= 2) broken(0);                                                                   // the centre line
       else { solid(-0.22, yel, yelI, 0.16); solid(0.22, yel, yelI, 0.16); for (let k = 1; k < L / 2; k++) { broken(k * lw); broken(-k * lw); } }
-      if (cls <= 5 && width >= 9) for (const sd of [-1, 1]) solid(sd * (width / 2 - 0.55), dash, dashI);   // edge lines on the main roads
+      if (cls <= 5 && width >= 9) for (const sd of [-1, 1]) solid(sd * (width / 2 - 0.55), pr && sd === pr.side ? yel : dash, pr && sd === pr.side ? yelI : dashI);   // edge lines on the main roads (yellow by the median)
+      else if (pr) solid(pr.side * (width / 2 - 0.45), yel, yelI, 0.16);
     }
     let s0 = 0;
     for (let i = 1; i < line.length; i++) {
@@ -122,7 +168,7 @@ export function buildRoads(d: PanjimData, g: Ground): { group: THREE.Group; segs
   const pv = meshOf(pave, paveI, NEW_LOOK ? 0xd6cbb6 : 0xa65a46, 1), as = meshOf(asph, asphI, NEW_LOOK ? 0x7d7f84 : 0x5c5e62, 2), mk = meshOf(dash, dashI, NEW_LOOK ? 0xfbf8f0 : 0xf2efe6, 3), yk = meshOf(yel, yelI, 0xf2c230, 3);
   wear(pv.material as THREE.Material, 'pavement'); wear(as.material as THREE.Material, 'asphalt'); wear(mk.material as THREE.Material, 'paint');   // worn, as Panjim's are
   wear(yk.material as THREE.Material, 'paint');
-  group.add(pv, meshOf(path, pathI, 0xcdb98e, 1), as, mk, yk);
+  group.add(pv, meshOf(path, pathI, 0xcdb98e, 1), as, mk, yk, meshOf(kerb, kerbI, 0xe2dccd, 4), meshOf(green, greenI, 0x5e9440, 5));
   return { group, segs };
 }
 
