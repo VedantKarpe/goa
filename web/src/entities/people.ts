@@ -15,6 +15,8 @@ interface Person {
   phase: Phase; path: number[]; pi: number; s: number; v: number; side: number;
   x: number; z: number; hx: number; hz: number; t: number;
   obj: THREE.Group | null; legs: THREE.Object3D[];
+  /** At work: a few spots of their own near the workplace, off the road, that they potter between. */
+  spots: { x: number; z: number }[] | null; tx: number; tz: number; wait: number; strolling: boolean;
 }
 
 // where each kind of job is done: a named place or landmark (the rest work somewhere in the town centre)
@@ -60,7 +62,7 @@ export class People {
       const leave = evening ? 900 + this.rnd() * 60 : night ? 1080 + this.rnd() * 60 : c.kid ? 440 + this.rnd() * 30 : 410 + this.rnd() * 130;   // 7-9 am (school 7:20); night shift from 6 pm
       const back = evening ? 1250 + this.rnd() * 70 : night ? 330 + this.rnd() * 60 : c.kid ? 780 + this.rnd() * 40 : 1010 + this.rnd() * 100;   // 5-6:40 pm (school 1 pm); night shift till dawn
       const n = this.net.nodes[home];
-      this.list.push({ c, said: 0, home, work, leave, back, night, phase: 'home', path: [], pi: 0, s: 0, v: (c.old ? 2.6 : c.kid ? 4.5 : 3.6) + this.rnd() * 0.8, side: this.rnd() < 0.5 ? 1 : -1, x: n.x, z: n.z, hx: 1, hz: 0, t: this.rnd() * 6, obj: null, legs: [] });
+      this.list.push({ c, said: 0, home, work, leave, back, night, phase: 'home', path: [], pi: 0, s: 0, v: (c.old ? 2.6 : c.kid ? 4.5 : 3.6) + this.rnd() * 0.8, side: this.rnd() < 0.5 ? 1 : -1, x: n.x, z: n.z, hx: 1, hz: 0, t: this.rnd() * 6, obj: null, legs: [], spots: null, tx: n.x, tz: n.z, wait: 0, strolling: false });
     }
   }
 
@@ -70,14 +72,36 @@ export class People {
     return inShift ? 'work' : 'home';
   }
 
+  /** Is (x, z) somewhere a person can stand that is not the road? (set by the game; until then, anywhere) */
+  offRoad: (x: number, z: number) => boolean = () => true;
+
+  /** Three spots of a person's own near their workplace: open ground or pavement, never the road. */
+  private workSpots(p: Person): { x: number; z: number }[] {
+    // the first open spot near the workplace, then two more close beside it (on the same side: no strolling across the road)
+    const n = this.net.nodes[p.work], seed = [...p.c.name].reduce((a, ch) => a * 31 + ch.charCodeAt(0), 7) >>> 0;
+    let first: { x: number; z: number } | null = null;
+    for (let r = 7; r < 60 && !first; r += 2.5) for (let k = 0; k < 12 && !first; k++) {
+      const a = ((seed % 628) / 100) + k * 0.53, x = n.x + Math.cos(a) * r, z = n.z + Math.sin(a) * r;
+      if (this.offRoad(x, z)) first = { x, z };
+    }
+    if (!first) return [{ x: n.x + 8, z: n.z + 8 }];
+    const out = [first], clear = (ax: number, az: number, bx: number, bz: number) => { for (let t = 0.25; t < 1; t += 0.25) if (!this.offRoad(ax + (bx - ax) * t, az + (bz - az) * t)) return false; return true; };
+    for (let k = 0; k < 24 && out.length < 3; k++) {
+      const a = k * 0.9 + seed, r = 3 + (k % 4) * 2, x = first.x + Math.cos(a) * r, z = first.z + Math.sin(a) * r;
+      if (this.offRoad(x, z) && clear(first.x, first.z, x, z) && out.every(o => Math.hypot(o.x - x, o.z - z) > 2.5)) out.push({ x, z });
+    }
+    return out;
+  }
+
   private go(p: Person, from: number, to: number, phase: Phase) {
+    p.spots = null; p.strolling = false;
     p.path = from === to ? [] : this.net.route(from, to); p.pi = 0; p.s = 0; p.phase = phase;
   }
 
   private started = false;
   update(dt: number, min: number, cx: number, cz: number) {
     // the first time: whoever should be at work already is (the game starts mid-afternoon)
-    if (!this.started) { this.started = true; for (const p of this.list) if (this.wants(p, min) === 'work') { p.phase = 'work'; const n = this.net.nodes[p.work]; p.x = n.x; p.z = n.z; } }
+    if (!this.started) { this.started = true; for (const p of this.list) if (this.wants(p, min) === 'work') { p.phase = 'work'; p.spots = this.workSpots(p); const s = p.spots[Math.floor(this.rnd() * p.spots.length)]; p.x = s.x; p.z = s.z; p.wait = this.rnd() * 6; } }
     for (const p of this.list) {
       const want = this.wants(p, min);
       // start the walk to work or home when it is time (and pick up from wherever they are)
@@ -89,16 +113,28 @@ export class People {
         const seen = Math.hypot(p.x - cx, p.z - cz) < 380;
         p.s += p.v * dt * (seen ? 1 : 12); p.t += dt * 7;
         while (p.pi < p.path.length && p.s > this.net.edge(p.path[p.pi]).len) { p.s -= this.net.edge(p.path[p.pi]).len; p.pi++; }
-        if (p.pi >= p.path.length) { p.phase = p.phase === 'toWork' ? 'work' : 'home'; const n = this.net.nodes[p.phase === 'work' ? p.work : p.home]; p.x = n.x; p.z = n.z; }
+        if (p.pi >= p.path.length) {
+          p.phase = p.phase === 'toWork' ? 'work' : 'home';
+          if (p.phase === 'home') { const n = this.net.nodes[p.home]; p.x = n.x; p.z = n.z; }
+          else { p.spots = p.spots ?? this.workSpots(p); const s = p.spots[0]; p.tx = s.x; p.tz = s.z; p.strolling = true; }   // on from the pavement to their spot
+        }
         else {
           const e = p.path[p.pi], a = this.net.at(e, p.s), E = this.net.edge(e), off = (E.width / 2 + 2.2) * p.side;
           p.x = a.x + a.dz * off; p.z = a.z - a.dx * off; p.hx = a.dx; p.hz = a.dz;
         }
       } else if (p.phase === 'work') {
-        // at work: stand about near the spot, now and then turning
-        const n = this.net.nodes[p.work]; p.t += dt;
-        p.x = n.x + Math.sin(p.c.name.length + 1) * 6; p.z = n.z + Math.cos(p.c.name.length) * 6;
-        const a = Math.sin(p.t * 0.3) * 2; p.hx = Math.cos(a); p.hz = Math.sin(a);
+        // at work: off the road, at a few spots of their own near the workplace, pottering between them in their own way
+        if (!p.spots) p.spots = this.workSpots(p);
+        const c = p.c, kid = !!c.kid, old = !!c.old, seller = /seller|vendor|stall|shop|poder|baker/i.test(c.job);
+        if (p.strolling) {
+          const d = Math.hypot(p.tx - p.x, p.tz - p.z), sp = (kid ? 3.2 : old ? 0.9 : 1.4) * dt;
+          if (d < 0.25) { p.strolling = false; p.wait = (seller ? 14 : old ? 12 : kid ? 2 : c.hint === 'chatty' ? 4 : 7) * (0.6 + this.rnd() * 0.8); }
+          else { p.hx = (p.tx - p.x) / d; p.hz = (p.tz - p.z) / d; const k = Math.min(1, sp / d); p.x += (p.tx - p.x) * k; p.z += (p.tz - p.z) * k; p.t += dt * (kid ? 11 : 6); }
+        } else {
+          p.wait -= dt;
+          const a = Math.sin(performance.now() / 3000 + c.name.length) * 1.2; p.hx = Math.cos(a); p.hz = Math.sin(a);   // looking about
+          if (p.wait <= 0) { const s = Math.hypot(p.x - p.spots[0].x, p.z - p.spots[0].z) > 0.5 ? p.spots[0] : p.spots[Math.floor(this.rnd() * p.spots.length)]; p.tx = s.x; p.tz = s.z; p.strolling = true; }
+        }
       }
       this.show(p, cx, cz);
     }
@@ -113,7 +149,7 @@ export class People {
     p.obj.position.set(p.x, this.g.heightAt(p.x, p.z) + 0.15, p.z);
     const near = Math.hypot(p.x - cx, p.z - cz) < 7;
     p.obj.rotation.y = near ? -Math.atan2(cz - p.z, cx - p.x) : -Math.atan2(p.hz, p.hx);
-    const walking = (p.phase === 'toWork' || p.phase === 'toHome') && !near;
+    const walking = (p.phase === 'toWork' || p.phase === 'toHome' || (p.phase === 'work' && p.strolling)) && !near;
     const sw = walking ? Math.sin(p.t) * 0.5 : 0; if (p.legs.length) { p.legs[0].rotation.z = sw; p.legs[1].rotation.z = -sw; }
   }
 

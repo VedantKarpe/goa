@@ -23,6 +23,7 @@ import { buildPlaques } from './world/plaques';
 import { setupShare } from './ui/share';
 import { Drive } from './entities/drive';
 import { Pets } from './entities/pets';
+import { Touts } from './entities/touts';
 import { sfx, unlockAudio } from './systems/sfx';
 import { loadModels, rawModel } from './world/models';
 import { Boats } from './entities/boats';
@@ -130,6 +131,7 @@ async function start() {
   const traffic = new Traffic(net, g, 48); scene.add(traffic.group);
   const signals = new Signals(net, g, (x, z) => bi.solid(x, z, 1.2)); scene.add(signals.group); traffic.signals = signals;
   const people = new People(net, g, d); scene.add(people.group);
+  people.offRoad = (x, z) => move.free(x, z) && !si.at(x, z) && !g.isWet(x, z);   // people stand about off the road
   const day = new Clock(net, g, (x, z, iron) => bi.solid(x, z, 1.2) || (!iron && (si.at(x, z)?.half ?? 0) > 2.5)); scene.add(day.lamps);   // no lamp post inside a building; no tubelight out on another road (the iron lamps along Atal Setu stand between its carriageways)
   const quests = new Quests(d, net, g, blds.list, px, pz, (x, z) => move.free(x, z)); scene.add(quests.group);
   // the areas of Goa with their own scenery and characters (Fontainhas, Miramar...) load as the child comes near them
@@ -145,6 +147,7 @@ async function start() {
   };   // the cartoon look, ink outlines as before
   // shops from OpenStreetMap, the famous places to eat also in the Places guide
   const shops = buildShops(d, g, roads.segs); scene.add(shops.group);
+  const touts = new Touts(shops.list, c => people.build(c), people.group, (x, z) => move.free(x, z) && !si.at(x, z) && !g.isWet(x, z), (x, z) => g.heightAt(x, z));
   for (const s of shops.list) if (s.famous) d.places.push([s.name, s.x / T, s.z / T]);
   // the cows: some resting by the market and Church Square, the rest out on the streets
   const restAt = d.places.filter(([n]) => n === 'Panjim Bazaar' || n === 'Church Square').map(([, x, y]) => [x * T, y * T] as [number, number]);
@@ -211,6 +214,7 @@ async function start() {
   const talk = () => {
     const said = areaMgr.talk(px, pz); if (said) { hud.whisper(said, 9, true); return; }
     const giver = quests.giverNear(px, pz); if (giver) { hud.whisper(quests.accept(giver), 10, true); sfx.pick(); return; }   // tasks start only when you ask
+    const tt = touts.near(px, pz); if (tt) { hud.whisper(`${tt.cast.name.replace('Tout at ', '')}: "${touts.talk(tt)}"`, 6, true); return; }
     const pet = pets.near(px, pz, 2.5) ?? (people.near(px, pz) ? null : pets.near(px, pz)); if (pet) { const m = pets.feed(pet); hud.whisper(m, 7, true); if (pets.mine === pet && pet.fed === 3) { sfx.done(); sfx.bark(); } else sfx.pick(); return; }
     const p = people.near(px, pz);
     hud.whisper(p ? people.talk(px, pz, quests.target) : 'Nobody here to ask, baba. Go near someone and ask.');
@@ -391,6 +395,7 @@ async function start() {
     const hit = traffic.update(dt, px, pz, night);
     if (hit && !traffic.riding && !drive.riding) { knockX = hit.kx; knockZ = hit.kz; hurtT = 0.6; }
     people.update(dt, day.min, px, pz);
+    if (!drive.riding && !traffic.riding) { const call = touts.update(dt, px, pz, performance.now() / 1000); if (call) hud.whisper(`"${call}"`, 4); }
     { const c = rentals.closest(px, pz); pets.update(dt, px, pz, input.has('shift'), !!(drive.riding || traffic.riding || bikes.riding), c ? c.d : 1e9, sfx.bark); }
     // the rental cars: hit by one and you lose (safe while riding a pilot or the bus)
     if (rentals.update(dt, px, pz, night, !!traffic.riding)) {
