@@ -9,7 +9,7 @@ const LL: Record<keyof Omit<OldGoa, 'centre'>, [number, number, number, string[]
   bomJesus: [15.50091, 73.91165, 45, ['Basilica of Bom Jesus', 'Bom Jesus Basilica']],
   se: [15.50385, 73.91243, 52, ['Se Cathedral', 'Sé Cathedral', 'Se Cathedral of Santa Catarina', 'Sé Catedral de Santa Catarina']],
   assisi: [15.50395, 73.91120, 30, ['Church of St. Francis of Assisi', 'Church of St Francis of Assisi', 'Church and Convent of St. Francis of Assisi']],
-  arch: [15.50700, 73.91310, 10, ["Viceroy's Arch", 'Arch of the Viceroys', 'Viceroys Arch']],
+  arch: [15.50578, 73.91363, 10, ['Arch of Viceroys', "Viceroy's Arch", 'Arch of the Viceroys', 'Viceroys Arch']],
 };
 
 let cache: OldGoa | null | undefined;
