@@ -1,5 +1,5 @@
-// Things you can do, shown where they are: a small round bubble floats over each person, dog, car or shop tout near
-// the child (💬 talk, ! needs help, 🍪 feed, 🚗 drive, ₹ a shop calling you in). Tap one and the child walks over and does
+// Things you can do, shown where they are: a small round bubble floats over each person, dog, car or shop's sales assistant near
+// the child (💬 talk, ! needs help, 🍪 feed, 🚗 drive, ₹ a shop's sales assistant). Tap one and the child walks over and does
 // it. When someone answers, their words show in a speech bubble over their head instead of in a box at the bottom.
 // Also the little "+15 ⭐" that floats up when you earn points.
 import * as THREE from 'three';

@@ -1,0 +1,8 @@
+[
+  { "id": "sample-shack", "title": "Sunset Shack (sample)", "where": "Calangute beach", "lat": 15.5440, "lon": 73.7553, "sample": true,
+    "blurb": "A sample listing: this is how a shack, a café or a small shop appears in virtual Goa.",
+    "speciality": "Kingfish thali, butter-garlic prawns, sol kadi",
+    "hours": "Open daily 8 am – 11 pm (season: Oct – May)", "price": "₹₹ · about ₹600 for two",
+    "photos": [], "phone": "", "whatsapp": "", "instagram": "",
+    "text": "Run by the same family for twenty seasons. Sunbeds are free when you order, the fish comes off the boats at seven, and the sunset is on the house." }
+]

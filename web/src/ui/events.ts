@@ -4,9 +4,11 @@
 import { T, type PanjimData } from '../world/data';
 
 export interface GoaEvent {
-  id: string; type: 'event' | 'ad' | 'story'; title: string; where: string; blurb: string; url?: string;
+  id: string; type: 'event' | 'ad' | 'story' | 'business'; title: string; where: string; blurb: string; url?: string;
   /** A story: its full text (paragraphs split by blank lines), photos (paths under public/), and who shared it. */
   text?: string; photos?: string[]; by?: string;
+  /** A business listing: what it is known for, when it is open, the price, and how to reach it (a sample shows how it works). */
+  speciality?: string; hours?: string; price?: string; phone?: string; whatsapp?: string; instagram?: string; sample?: boolean;
   /** A name on the map (a place, a named building, a shop, a landmark), or lat/lon. */
   place?: string; lat?: number; lon?: number;
   from: string; to: string;                // dates, YYYY-MM-DD (inclusive)
@@ -48,6 +50,10 @@ export async function loadEvents(d: PanjimData, now = new Date()): Promise<GoaEv
   let st: Partial<GoaEvent>[] = [];
   try { const r = await fetch(`${import.meta.env.BASE_URL}data/stories.json`, { cache: 'no-cache' }); if (r.ok) st = await r.json(); } catch { /* none yet */ }
   for (const e of st) { const at = locate(d, e); if (at) out.push({ ...(e as GoaEvent), from: e.from ?? '', to: e.to ?? '', type: 'story', ...at, on: true }); }
+  // businesses: shacks, cafés, small shops with a listing of their own
+  let bz: Partial<GoaEvent>[] = [];
+  try { const r = await fetch(`${import.meta.env.BASE_URL}data/businesses.json`, { cache: 'no-cache' }); if (r.ok) bz = await r.json(); } catch { /* none yet */ }
+  for (const e of bz) { const at = locate(d, e); if (at) out.push({ ...(e as GoaEvent), from: '', to: '', type: 'business', ...at, on: true }); }
   return out;
 }
 
@@ -55,6 +61,7 @@ const fmt = (s: string) => new Date(s + 'T00:00:00').toLocaleDateString('en-IN',
 export function when(e: GoaEvent): string {
   if (e.type === 'ad') return 'Sponsored';
   if (e.type === 'story') return e.by ? `Shared by ${e.by}` : 'A story';
+  if (e.type === 'business') return e.sample ? 'Sample listing' : 'Local business';
   const span = e.from === e.to ? fmt(e.from) : `${fmt(e.from)} – ${fmt(e.to)}`;
   return e.on ? `On now · ${span}` : span;
 }
@@ -70,6 +77,7 @@ export class EventCard {
   }
   get open() { return this.el.style.display !== 'none'; }
   show(e: GoaEvent) {
+    if (e.type === 'business') { this.showBusiness(e); return; }
     const col = e.type === 'ad' ? '#f2c230' : e.type === 'story' ? '#5fd8c8' : '#ff5fa2';
     this.el.innerHTML = `<button data-x style="position:absolute;right:8px;top:6px;background:none;border:0;color:#ece4cf;font-size:18px;cursor:pointer" aria-label="Close">✕</button>
       <div style="color:${col};font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase">${e.type === 'ad' ? 'Ad' : e.type === 'story' ? 'Story' : 'Event'} · ${esc(when(e))}</div>
@@ -86,6 +94,27 @@ export class EventCard {
     this.el.style.display = 'block';
     this.el.querySelector('[data-x]')!.addEventListener('click', () => this.hide());
     this.el.querySelector('[data-r]')?.addEventListener('click', ev => { const f = this.el.querySelector<HTMLElement>('[data-full]')!; const open = f.style.display === 'none'; f.style.display = open ? 'block' : 'none'; (ev.currentTarget as HTMLElement).textContent = open ? 'Hide the story' : 'Read the story'; });
+    this.el.querySelector('[data-g]')!.addEventListener('click', () => { this.hide(); this.guide(e); });
+    this.el.querySelector('[data-t]')!.addEventListener('click', () => { this.hide(); this.travel(e); });
+  }
+  /** A business's card: its own page in the game (for a shop with no website, this is its website). */
+  private showBusiness(e: GoaEvent) {
+    const btn = (label: string, href: string, main = false) => href
+      ? `<a href="${esc(href)}" target="_blank" rel="noopener" style="flex:1 1 40%;text-align:center;text-decoration:none;font:700 13px Mukta,sans-serif;border-radius:999px;padding:7px 10px;${main ? 'background:#25d366;color:#0a1020' : 'background:none;color:#ece4cf;border:1px solid rgba(236,228,207,.4)'}">${label}</a>`
+      : `<span title="In a real listing this opens the business" style="flex:1 1 40%;text-align:center;font:700 13px Mukta,sans-serif;border-radius:999px;padding:7px 10px;opacity:.55;border:1px dashed rgba(236,228,207,.4);color:#ece4cf">${label}</span>`;
+    const maps = `https://www.google.com/maps/dir/?api=1&destination=${e.lat ?? ''},${e.lon ?? ''}`;
+    this.el.innerHTML = `<button data-x style="position:absolute;right:8px;top:6px;background:none;border:0;color:#ece4cf;font-size:18px;cursor:pointer" aria-label="Close">✕</button>
+      <div style="color:#ff9a3d;font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase">🏪 ${esc(when(e))}</div>
+      <div style="font-size:19px;font-weight:700;line-height:1.25;margin:2px 24px 2px 0">${esc(e.title)}</div>
+      <div style="color:#9a9484;font-size:13px">📍 ${esc(e.where)}${e.price ? ' · ' + esc(e.price) : ''}</div>
+      ${e.speciality ? `<div style="margin:8px 0 2px;font-weight:700;color:#f2c230">⭐ Known for</div><div style="color:#ece4cf">${esc(e.speciality)}</div>` : ''}
+      ${e.hours ? `<div style="margin-top:6px;color:#cfc8b4;font-size:13px">🕒 ${esc(e.hours)}</div>` : ''}
+      ${e.text ? `<div style="margin:8px 0;color:#cfc8b4;line-height:1.45">${esc(e.text)}</div>` : ''}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 8px">${btn('💬 WhatsApp', e.whatsapp ? 'https://wa.me/' + e.whatsapp : '', true)}${btn('📞 Call', e.phone ? 'tel:' + e.phone : '')}${btn('🧭 Directions', maps)}${btn('📷 Instagram', e.instagram ? 'https://instagram.com/' + e.instagram : '')}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button data-g style="font:600 13px Mukta,sans-serif;color:#0a1020;background:#9fe8d6;border:0;border-radius:999px;padding:6px 14px;cursor:pointer">Guide me</button><button data-t style="font:600 13px Mukta,sans-serif;color:#ece4cf;background:none;border:1px solid rgba(236,228,207,.4);border-radius:999px;padding:6px 14px;cursor:pointer">Take a pilot ›</button></div>
+      ${e.sample ? `<div style="margin-top:10px;padding:8px 10px;border-radius:10px;background:rgba(255,154,61,.12);border:1px dashed rgba(255,154,61,.6);font-size:13px;color:#ffd2a8">This is a <b>sample listing</b>. Own a shack, café or shop? Your card can look like this, with your photos, menu and WhatsApp. <b>DM @goabuilder</b></div>` : ''}`;
+    this.el.style.display = 'block';
+    this.el.querySelector('[data-x]')!.addEventListener('click', () => this.hide());
     this.el.querySelector('[data-g]')!.addEventListener('click', () => { this.hide(); this.guide(e); });
     this.el.querySelector('[data-t]')!.addEventListener('click', () => { this.hide(); this.travel(e); });
   }

@@ -5,7 +5,7 @@ export interface Stamp { id: string; name: string; icon: string; kind: 'place' |
 const DEEDS: [string, string, string][] = [
   ['help1', 'Helped someone', '🤝'], ['help3', 'Helped three people', '🏅'], ['dog', 'Made a dog friend', '🐕'],
   ['drive', 'Drove a car', '🚗'], ['auto', 'Took an auto drive', '🗺️'], ['beach', 'Pushed a car out of the sand', '🏖️'],
-  ['jetski', 'Rode a jet ski', '🛥️'], ['night', 'Out at night', '🌙'], ['tout', 'Heard a shop tout', '₹'], ['story', 'Read a story', '✎'],
+  ['jetski', 'Rode a jet ski', '🛥️'], ['night', 'Out at night', '🌙'], ['assistant', 'Met a sales assistant', '₹'], ['story', 'Read a story', '✎'],
 ];
 
 export class Passport {

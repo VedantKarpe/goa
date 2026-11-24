@@ -1,11 +1,11 @@
-// Shop touts: outside some of the shops (not all: about one in four, and any shop that has its own ad) someone stands
+// Sales assistants: outside some of the shops (not all: about one in four, and any shop that has its own ad) someone stands
 // at the door calling people in. "Patrão, patrão! Come, come!" Walk past and they call out to you; Talk and they make
-// their pitch. Later each business can have its own tout with its own lines (an ad in events.json with `tout` lines).
+// their pitch. Later each business can have its own sales assistant with their own lines (an ad in events.json with `pitch` lines).
 import type * as THREE from 'three';
 import type { Cast } from './cast';
 import type { Shop } from '../world/shops';
 
-interface Tout { shop: Shop; x: number; z: number; cast: Cast; obj: THREE.Group | null; said: number; lines: string[] }
+interface Assistant { shop: Shop; x: number; z: number; cast: Cast; obj: THREE.Group | null; said: number; lines: string[] }
 
 const OUTFITS: Pick<Cast, 'outfit' | 'top' | 'bottom' | 'hair' | 'skin'>[] = [
   { outfit: 'shirt', top: 0xe07a30, bottom: 0x2b2b33, hair: 'black', skin: 2 }, { outfit: 'tee', top: 0x2f7fc0, bottom: 0x3a3a44, hair: 'black', skin: 1 },
@@ -25,27 +25,27 @@ function pitch(s: Shop): string[] {
   return [`Patrão, patrão! Come here, we have deals! ${n}!`, `Come inside ${n}, patrão, today special discount!`, `Best price in Goa, patrão, ${n}! Just come and see!`];
 }
 
-export class Touts {
-  list: Tout[] = [];
+export class SalesAssistants {
+  list: Assistant[] = [];
   private cool = 0;
 
   constructor(shops: Shop[], private build: (c: Cast) => { obj: THREE.Group }, private group: THREE.Group,
-    private offRoad: (x: number, z: number) => boolean, private ground: (x: number, z: number) => number, ads: { place?: string; tout?: string[] }[] = []) {
+    private offRoad: (x: number, z: number) => boolean, private ground: (x: number, z: number) => number, ads: { place?: string; pitch?: string[] }[] = []) {
     const hash = (s: string) => [...s].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
     for (const s of shops) {
-      const ad = ads.find(a => a.tout?.length && a.place?.toLowerCase() === s.name.toLowerCase());
+      const ad = ads.find(a => a.pitch?.length && a.place?.toLowerCase() === s.name.toLowerCase());
       if (!ad && hash(s.name) % 4 !== 0) continue;   // most shops just get on with business
       // stand at the shop's front, on open ground off the road
       let spot: { x: number; z: number } | null = null;
       for (let r = 3; r < 16 && !spot; r += 1.5) for (let a = 0; a < 6.28 && !spot; a += 0.6) { const x = s.x + Math.cos(a) * r, z = s.z + Math.sin(a) * r; if (this.offRoad(x, z)) spot = { x, z }; }
       if (!spot) continue;
       const h = hash(s.name), o = OUTFITS[h % OUTFITS.length];
-      const cast: Cast = { name: `Tout at ${s.name}`, job: `calls people into ${s.name}`, ...o, prop: 'none', hint: 'chatty', lines: [] };
-      this.list.push({ shop: s, ...spot, cast, obj: null, said: -99, lines: ad?.tout ?? pitch(s) });
+      const cast: Cast = { name: `Sales assistant at ${s.name}`, job: `calls people into ${s.name}`, ...o, prop: 'none', hint: 'chatty', lines: [] };
+      this.list.push({ shop: s, ...spot, cast, obj: null, said: -99, lines: ad?.pitch ?? pitch(s) });
     }
   }
 
-  /** Each frame: show the touts near the child; the one you walk past calls out (returns the line to show, if any). */
+  /** Each frame: show the sales assistants near the child; the one you walk past calls out (returns the line to show, if any). */
   update(dt: number, px: number, pz: number, now: number): string | null {
     this.cool -= dt;
     let call: string | null = null;
@@ -63,7 +63,7 @@ export class Touts {
     return call;
   }
 
-  /** Talk, standing by a tout: their pitch. */
-  near(px: number, pz: number): Tout | null { let b: Tout | null = null, bd = 4; for (const t of this.list) { const d = Math.hypot(t.x - px, t.z - pz); if (d < bd) { bd = d; b = t; } } return b; }
-  talk(t: Tout): string { return `${t.lines[Math.floor(Math.random() * t.lines.length)]}`; }
+  /** Talk, standing by a sales assistant: their pitch. */
+  near(px: number, pz: number): Assistant | null { let b: Assistant | null = null, bd = 4; for (const t of this.list) { const d = Math.hypot(t.x - px, t.z - pz); if (d < bd) { bd = d; b = t; } } return b; }
+  talk(t: Assistant): string { return `${t.lines[Math.floor(Math.random() * t.lines.length)]}`; }
 }

@@ -23,7 +23,7 @@ import { buildPlaques } from './world/plaques';
 import { setupShare } from './ui/share';
 import { Drive } from './entities/drive';
 import { Pets } from './entities/pets';
-import { Touts } from './entities/touts';
+import { SalesAssistants } from './entities/salesAssistants';
 import { Bubbles, type Thing } from './ui/bubbles';
 import { Guide } from './ui/guide';
 import { Passport } from './ui/passport';
@@ -151,7 +151,7 @@ async function start() {
   };   // the cartoon look, ink outlines as before
   // shops from OpenStreetMap, the famous places to eat also in the Places guide
   const shops = buildShops(d, g, roads.segs); scene.add(shops.group);
-  const touts = new Touts(shops.list, c => people.build(c), people.group, (x, z) => move.free(x, z) && !si.at(x, z) && !g.isWet(x, z), (x, z) => g.heightAt(x, z));
+  const assistants = new SalesAssistants(shops.list, c => people.build(c), people.group, (x, z) => move.free(x, z) && !si.at(x, z) && !g.isWet(x, z), (x, z) => g.heightAt(x, z));
   for (const s of shops.list) if (s.famous) d.places.push([s.name, s.x / T, s.z / T]);
   // the cows: some resting by the market and Church Square, the rest out on the streets
   const restAt = d.places.filter(([n]) => n === 'Panjim Bazaar' || n === 'Church Square').map(([, x, y]) => [x * T, y * T] as [number, number]);
@@ -195,7 +195,7 @@ async function start() {
     e => { map.close(); places2.onTravel({ name: e.where, x: e.x, z: e.z, note: '', seen: false }); },
     () => map.unzoom());
   map.onPick = e => (e ? evCard.show(e) : evCard.hide());
-  loadEvents(d).then(ev => { map.events = ev; places2.events = [...ev].sort((a, b) => (a.type === 'event' ? (a.on ? 0 : 1) : a.type === 'story' ? 2 : 3) - (b.type === 'event' ? (b.on ? 0 : 1) : b.type === 'story' ? 2 : 3)); scene.add(buildPlaques(ev.filter(e => e.type === 'story'), (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z))); });
+  loadEvents(d).then(ev => { map.events = ev; places2.events = [...ev].sort((a, b) => { const r = (e: typeof a) => e.type === 'event' ? (e.on ? 0 : 1) : e.type === 'story' ? 2 : e.type === 'business' ? 3 : 4; return r(a) - r(b); }); scene.add(buildPlaques(ev.filter(e => e.type === 'story'), (x, z) => g.heightAt(x, z), (x, z) => move.free(x, z))); });
   setupShare(document.getElementById('bShare')!);
   // What's on: one list of what is happening (events, stories, ads) and the places, nearest first
   places2.here = () => [px, pz];
@@ -231,7 +231,7 @@ async function start() {
   const talk = (at?: { x: number; z: number }) => {
     const said = areaMgr.talk(px, pz); if (said) { say(said, 9, at); guide.did('talk'); return; }
     const giver = quests.giverNear(px, pz); if (giver) { say(quests.accept(giver), 10, at); sfx.pick(); guide.did('talk'); return; }   // tasks start only when you ask
-    const tt = touts.near(px, pz); if (tt) { say(touts.talk(tt), 6, at ?? tt); passport.give('tout'); return; }
+    const tt = assistants.near(px, pz); if (tt) { say(assistants.talk(tt), 6, at ?? tt); passport.give('assistant'); return; }
     const pet = pets.near(px, pz, 2.5) ?? (people.near(px, pz) ? null : pets.near(px, pz));
     if (pet) { const m = pets.feed(pet); hud.whisper(m, 7, true); guide.did('feed'); if (pets.mine === pet && pet.fed === 3) { sfx.done(); sfx.bark(); passport.give('dog'); } else sfx.pick(); return; }
     const p = people.near(px, pz);
@@ -447,7 +447,7 @@ async function start() {
     const hit = traffic.update(dt, px, pz, night);
     if (hit && !traffic.riding && !drive.riding) { knockX = hit.kx; knockZ = hit.kz; hurtT = 0.6; }
     people.update(dt, day.min, px, pz);
-    if (!drive.riding && !traffic.riding) { const call = touts.update(dt, px, pz, performance.now() / 1000); if (call) { const t = touts.near(px, pz) ?? touts.list.reduce((a, b) => Math.hypot(a.x - px, a.z - pz) < Math.hypot(b.x - px, b.z - pz) ? a : b); say(call, 4, t); passport.give('tout'); } }
+    if (!drive.riding && !traffic.riding) { const call = assistants.update(dt, px, pz, performance.now() / 1000); if (call) { const t = assistants.near(px, pz) ?? assistants.list.reduce((a, b) => Math.hypot(a.x - px, a.z - pz) < Math.hypot(b.x - px, b.z - pz) ? a : b); say(call, 4, t); passport.give('assistant'); } }
     { const c = rentals.closest(px, pz); pets.update(dt, px, pz, input.has('shift'), !!(drive.riding || traffic.riding || bikes.riding), c ? c.d : 1e9, sfx.bark); }
     // the rental cars: hit by one and you lose (safe while riding a pilot or the bus)
     if (rentals.update(dt, px, pz, night, !!traffic.riding)) {
@@ -553,7 +553,7 @@ async function start() {
         const go = (x: number, z: number, then: () => void) => { walkTo = { x, z, then }; };
         quests.waiting.forEach((q, i) => add('q' + i, q.at!.x, q.at!.z, '!', 'Help', () => go(q.at!.x, q.at!.z, () => talk(q.at!)), 3.6));
         for (const p of people.list) if (p.phase !== 'home' && !quests.waiting.some(q => Math.hypot(q.at!.x - p.x, q.at!.z - p.z) < 3)) add('p' + p.c.name, p.x, p.z, '💬', p.c.name.split(' ')[0].replace(/^(Mrs?\.|Mr\.|Fr\.|Dr\.)$/, p.c.name.split(' ')[1] ?? ''), () => go(p.x, p.z, () => talk(p)), 3.2);
-        for (const t of touts.list) add('t' + t.shop.name, t.x, t.z, '₹', 'Deals', () => go(t.x, t.z, () => talk(t)), 3.2);
+        for (const t of assistants.list) add('t' + t.shop.name, t.x, t.z, '₹', 'Deals', () => go(t.x, t.z, () => talk(t)), 3.2);
         for (const a of pets.list) if (a !== pets.mine) add('a' + a.hx + ',' + a.hz, a.x, a.z, '🍪', a.kind === 'dog' ? 'Feed' : 'Cat', () => go(a.x, a.z, () => talk(a)), 1.3);
         const car = drive.near(px, pz, 14); if (car) add('car', car.x, car.z, '🚗', 'Drive', () => go(car.x, car.z, () => lift()), 2.6);
       }
