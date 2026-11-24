@@ -123,6 +123,10 @@
   .btns button:active { transform: scale(.92); background: #f2c230 !important; }
   #bIn, #bOut { font-size: 26px !important; }
   @media (max-width: 700px) { .btns button { width: 44px !important; height: 44px !important; } }
+  #audioBtns { position: fixed; z-index: 6; top: 10px; left: 210px; display: flex; gap: 6px; }
+  #audioBtns button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(236,228,207,.35); background: rgba(10,16,32,.72); font-size: 16px; cursor: pointer; touch-action: manipulation; }
+  #audioBtns button.off { opacity: .45; } #audioBtns #bMusic.off { text-decoration: line-through; }
+  @media (max-width: 700px) { #audioBtns { top: 8px; left: auto; right: 140px; } #audioBtns button { width: 32px; height: 32px; font-size: 15px; } }
   .act button.hot { border-color: #5fd8c8; color: #0a1020; background: #5fd8c8; }
   /* phones: one compact row of actions along the bottom (the ones you use most first), four slim camera buttons in a
      column on the right, the map credit small and out of the way */
@@ -147,7 +151,7 @@
   }
 </style>
   <div id="loading">Loading Goa…</div>
-  <div class="hud" id="stats"></div>
+  <div class="hud" id="stats"></div><div id="audioBtns"><button id="bSound" aria-label="Sound on or off" title="Sound">🔊</button><button id="bMusic" aria-label="Music on or off" title="Music">🎵</button></div>
   <div class="hud" id="place"></div>
   <div class="hud" id="objective"></div>
   <div class="hud" id="say"></div>

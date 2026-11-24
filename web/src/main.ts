@@ -27,8 +27,10 @@ import { SalesAssistants } from './entities/salesAssistants';
 import { Bubbles, type Thing } from './ui/bubbles';
 import { Guide } from './ui/guide';
 import { Passport } from './ui/passport';
+import { Ambience } from './systems/ambience';
+import { Music } from './systems/music';
 import { areas as areaList } from './areas/registry';
-import { sfx, unlockAudio } from './systems/sfx';
+import { sfx, unlockAudio, setSound, isSoundOn } from './systems/sfx';
 import { loadModels, rawModel } from './world/models';
 import { Boats } from './entities/boats';
 import { Pumps } from './entities/pumps';
@@ -47,6 +49,7 @@ import { Rentals } from './entities/rentals';
 import { donaPaulaLand, shiftDP } from './areas/donapaulaLand';
 import { kingfisherAt, KF_R } from './areas/kingfisherSpot';
 import { oldGoaAt } from './areas/oldgoaSpot';
+import { beachesOn } from './areas/beachSpot';
 import { buildShops, buildLoveSign } from './world/shops';
 import { AreaManager } from './areas/manager';
 import { areas, beachSand } from './areas/registry';
@@ -89,9 +92,10 @@ async function start() {
     let cx = 0, cy = 0; for (let i = 0; i < f.length; i += 2) { cx += f[i]; cy += f[i + 1]; } cx /= f.length / 2; cy /= f.length / 2;
     if (kf && Math.hypot(cx * T - kf.x, cy * T - kf.z) < KF_R + 5) return false;
     if (ogSpots.some(o => Math.hypot(cx * T - o.x, cy * T - o.z) < o.r)) return false;
+    { const ch = d.rows[Math.floor(cy)]?.[Math.floor(cx)]; if (ch === 'S' || ch === 'B') return false; }   // nothing built on the beach sand (the shacks are their own)
     return !lmBox.some(([x0, x1, y0, y1]) => cx > x0 && cx < x1 && cy > y0 && cy < y1);
   }) };
-  const extra = infill(d, g, si); plain.b = plain.b.concat(extra);
+  const extra = infill(d, g, si).filter(([f]) => { const ch = d.rows[Math.floor(f[1])]?.[Math.floor(f[0])]; return ch !== 'S' && ch !== 'B'; }); plain.b = plain.b.concat(extra);
   const blds = buildBuildings(plain, g, roads.segs); scene.add(blds.group);
   await loaderStep(80, 'Planting coconut palms…');
   // the landmarks' own outlines stay solid, though their plain blocks are not drawn
@@ -210,7 +214,7 @@ async function start() {
   map.onOpen = () => { if (!whats) map.focus(px, pz, 110); }; map.onClose = () => closeWhats();
   // which town the child is in: the nearest of the towns on the map
   const TOWNS: Record<string, string> = { 'Panaji': 'Panjim', 'Church Square': 'Panjim', 'Fontainhas': 'Panjim', 'Panjim Bazaar': 'Panjim', 'Campal': 'Panjim', 'Altinho': 'Panjim', 'Patto': 'Panjim', 'Miramar': 'Miramar', 'Caranzalem': 'Caranzalem', 'Dona Paula': 'Dona Paula', 'Taleigao': 'Taleigao', 'Goa University': 'Taleigao', 'Old Goa': 'Old Goa', 'Sinquerim': 'Sinquerim', 'Fort Aguada': 'Sinquerim', 'Kingfisher Villa': 'Sinquerim', 'Ribandar': 'Ribandar', 'Betim': 'Betim', 'Porvorim': 'Porvorim' };
-  const townAnchors = d.places.filter(q => TOWNS[q[0]]).map(q => ({ t: TOWNS[q[0]], x: q[1] * T, z: q[2] * T }));
+  const townAnchors = [...d.places.filter(q => TOWNS[q[0]]).map(q => ({ t: TOWNS[q[0]], x: q[1] * T, z: q[2] * T })), ...beachesOn(d).map(b => ({ t: b.name, x: b.x, z: b.z }))];
   const townEl = document.getElementById('town')!;
   for (const id of ['mapBtn', 'town']) document.getElementById(id)!.addEventListener('click', e => { (e.currentTarget as HTMLElement).blur(); if (!map.isBig) { map.focus(px, pz, 110); } });
   setInterval(() => { let best = '', bd = 1e9; for (const a of townAnchors) { const dd = Math.hypot(a.x - px, a.z - pz); if (dd < bd) { bd = dd; best = a.t; } } if (bd > 2500) best = 'Goa'; map.town = best; if (townEl.textContent !== best) townEl.textContent = best; }, 1000);
@@ -324,6 +328,15 @@ async function start() {
       m.count = k; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true;
     }
   };
+  // the sound of the place and the music
+  const ambience = new Ambience(), music = new Music();
+  const churches = (d.named ?? []).filter(q => q[0] === 'church').map(q => [q[2] * T, q[3] * T] as [number, number]);
+  let where = { sea: 0, road: 0, trees: 0, church: 0, night: 0, minute: 0 }, whereT = 0;
+  const bSound = document.getElementById('bSound')!, bMusic = document.getElementById('bMusic')!;
+  const showAudio = () => { bSound.textContent = isSoundOn() ? '🔊' : '🔇'; bMusic.textContent = music.on ? '🎵' : '🎵'; bMusic.classList.toggle('off', !music.on); bSound.classList.toggle('off', !isSoundOn()); };
+  bSound.addEventListener('click', e => { (e.currentTarget as HTMLElement).blur(); unlockAudio(); setSound(!isSoundOn()); showAudio(); });
+  bMusic.addEventListener('click', e => { (e.currentTarget as HTMLElement).blur(); unlockAudio(); music.toggle(); showAudio(); });
+  showAudio();
   let helped = 0, stepT = 0, waveT = 0, bubT = 0, lastPts = 0;
   let mapT = 0, shopT = 0, cowSaid = false, cullT = 0;
   const smallStuff = [bikes.group, cows.group, pumps.group, traffic.group, drive.group, pets.group];   // (people show and hide themselves)
@@ -562,6 +575,17 @@ async function start() {
       if (night) passport.give('night');
     }
     bubbles.update(rig.camera);
+    // what is around the child, for the soundscape (a few times a second)
+    whereT -= dt;
+    if (whereT <= 0) {
+      whereT = 0.4;
+      let sea = 0; for (const r of [15, 35, 70]) for (let a2 = 0; a2 < 6.28; a2 += 0.785) if (g.isWet(px + Math.cos(a2) * r, pz + Math.sin(a2) * r)) sea = Math.max(sea, 1 - (r - 15) / 80);
+      let road = 0; for (const r of [0, 12, 25]) for (let a2 = 0; a2 < 6.28; a2 += 1.57) if (si.at(px + Math.cos(a2) * r, pz + Math.sin(a2) * r)) road = Math.max(road, 1 - r / 40);
+      let trees = 0; for (let a2 = 0; a2 < 6.28; a2 += 0.785) { const ch = d.rows[Math.floor((pz + Math.sin(a2) * 30) / T)]?.[Math.floor((px + Math.cos(a2) * 30) / T)]; if (ch === 'F' || ch === 'G' || ch === 'P') trees += 0.125; }
+      let cd = 1e9; for (const [cx2, cz2] of churches) cd = Math.min(cd, Math.hypot(cx2 - px, cz2 - pz));
+      where = { sea, road, trees, church: Math.max(0, 1 - cd / 700), night: day.dark, minute: day.min };
+    }
+    ambience.update(dt, where); music.update();
     if (st.points > lastPts) { const v = child.obj.position.clone(); v.y += 3; v.project(rig.camera); bubbles.pop(`+${st.points - lastPts} ⭐`, (v.x * 0.5 + 0.5) * innerWidth, (-v.y * 0.5 + 0.5) * innerHeight); }
     lastPts = st.points;
     // the sea, now and then, when it is close

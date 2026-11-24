@@ -66,7 +66,14 @@ export function buildTerrain(d: PanjimData, g: Ground, solidAt: (X: number, Z: n
     const hk = 1 + Math.min(0.12, g.rawHeight(tx, ty) / 400);
     const jit = 0.94 + ((i * 73 + j * 37) % 11) / 90;
     const lat = c === TILE_COL.G || c === TILE_COL.L || c === TILE_COL.R ? blotch(tx, ty) : 0;
-    let r0 = c[0] + (0.55 - c[0]) * lat, g0 = c[1] + (0.36 - c[1]) * lat, b0 = c[2] + (0.22 - c[2]) * lat;
+    // the colour blends between neighbouring tiles, the boundary wobbled by noise, so sand meets grass in an irregular
+    // natural line rather than the 20 m squares of the map
+    const wx = tx + (vnoise(tx / 1.7 + 11, ty / 1.7) - 0.5) * 1.3, wy = ty + (vnoise(tx / 1.7, ty / 1.7 + 7) - 0.5) * 1.3;
+    const bx = Math.max(0, Math.min(W - 1.001, wx - 0.5)), by = Math.max(0, Math.min(H - 1.001, wy - 0.5)), bi = bx | 0, bj = by | 0, bu = bx - bi, bv = by - bj;
+    const tc = (a: number, b2: number) => TILE_COL[d.rows[bj + b2][bi + a]] || TILE_COL.G;
+    const c00 = tc(0, 0), c10 = tc(1, 0), c01 = tc(0, 1), c11 = tc(1, 1), sm2 = (t: number) => t * t * (3 - 2 * t), u2 = sm2(bu), v2 = sm2(bv);
+    const mixc = (k2: number) => (c00[k2] * (1 - u2) + c10[k2] * u2) * (1 - v2) + (c01[k2] * (1 - u2) + c11[k2] * u2) * v2;
+    let r0 = mixc(0) + (0.55 - mixc(0)) * lat, g0 = mixc(1) + (0.36 - mixc(1)) * lat, b0 = mixc(2) + (0.22 - mixc(2)) * lat;
     // a band of sand or mud along the water's edge
     const beach = (1 - smooth(0.58, 0.85, land)) * 0.85;
     // the new look: sand only where the map has a beach; elsewhere the shore is dark laterite rock

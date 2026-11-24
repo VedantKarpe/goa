@@ -20,12 +20,13 @@ export function shacksOf(d: PanjimData, b: Beach): ShackSpot[] {
   const sand = (x: number, y: number) => { const c = d.rows[y]?.[x]; return c === 'S' || c === 'B'; };
   const water = (x: number, y: number) => d.rows[y]?.[x] === 'W';
   const land = (x: number, y: number) => { const c = d.rows[y]?.[x]; return !!c && c !== 'W' && c !== 'S' && c !== 'B'; };
-  const cx = Math.round(b.x / T), cy = Math.round(b.z / T), R = 45, out: ShackSpot[] = [];
+  const cx = Math.round(b.x / T), cy = Math.round(b.z / T), R = 72, out: ShackSpot[] = [], all = beachesOn(d);
   const cand: [number, number, number][] = [];
   for (let y = cy - R; y <= cy + R; y++) for (let x = cx - R; x <= cx + R; x++) {
     if (!sand(x, y)) continue;
     let nearLand = false; for (const [a, c] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (land(x + a, y + c)) nearLand = true;
     if (!nearLand) continue;
+    if (all.some(o => o.name !== b.name && Math.hypot(o.x / T - x, o.z / T - y) < Math.hypot(cx - x, cy - y))) continue;   // that stretch belongs to the next beach
     // which way is the sea: the nearest water tile
     let best = 1e9, face = 0;
     for (let r = 1; r < 12; r++) for (let a = 0; a < 6.28; a += 0.4) { const wx = Math.round(x + Math.cos(a) * r), wy = Math.round(y + Math.sin(a) * r); if (water(wx, wy) && r < best) { best = r; face = a; } }
@@ -35,7 +36,7 @@ export function shacksOf(d: PanjimData, b: Beach): ShackSpot[] {
   for (const [x, y, face] of cand) {
     const px = (x + 0.5) * T + Math.cos(face) * 6, pz = (y + 0.5) * T + Math.sin(face) * 6;
     if (out.every(o => Math.hypot(o.x - px, o.z - pz) > 45)) out.push({ x: px, z: pz, face, beach: b.name, n: out.length + 1 });
-    if (out.length >= 9) break;
+    if (out.length >= 16) break;
   }
   cache.set(b.name, out);
   return out;

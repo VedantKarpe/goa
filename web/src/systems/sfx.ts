@@ -1,20 +1,29 @@
 // Small synthesised sounds (no files to load): a horn, a crash, a pickup chime, the banish whoosh and the spirit's
 // chord. The audio starts on the first key or tap, as browsers require.
-let ctx: AudioContext | null = null;
-export function unlockAudio() { if (!ctx) try { ctx = new AudioContext(); } catch { /* no audio */ } else if (ctx.state === 'suspended') ctx.resume(); }
+let ctx: AudioContext | null = null, master: GainNode | null = null, fx: GainNode | null = null;
+let soundOn = (() => { try { return localStorage.getItem('vg_sound') !== 'off'; } catch { return true; } })();
+export function unlockAudio() {
+  if (!ctx) try { ctx = new AudioContext(); master = ctx.createGain(); master.gain.value = soundOn ? 1 : 0; master.connect(ctx.destination); fx = ctx.createGain(); fx.connect(master); } catch { /* no audio */ }
+  else if (ctx.state === 'suspended') ctx.resume();
+}
+/** The shared audio context and the master output (for the ambience and the music), once the player has tapped. */
+export function audio(): { ctx: AudioContext; out: GainNode } | null { return ctx && master ? { ctx, out: master } : null; }
+/** All sound on or off (remembered on this device). */
+export function setSound(on: boolean) { soundOn = on; try { localStorage.setItem('vg_sound', on ? 'on' : 'off'); } catch { /* private */ } if (master && ctx) master.gain.setTargetAtTime(on ? 1 : 0, ctx.currentTime, 0.1); }
+export function isSoundOn() { return soundOn; }
 
 function tone(freq: number, dur: number, type: OscillatorType, vol: number, slide = 0, delay = 0) {
   if (!ctx) return;
   const t = ctx.currentTime + delay, o = ctx.createOscillator(), g = ctx.createGain();
   o.type = type; o.frequency.setValueAtTime(freq, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, freq + slide), t + dur);
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + dur + 0.02);
+  o.connect(g).connect(fx ?? ctx.destination); o.start(t); o.stop(t + dur + 0.02);
 }
 function noise(dur: number, vol: number) {
   if (!ctx) return;
   const n = ctx.sampleRate * dur, b = ctx.createBuffer(1, n, ctx.sampleRate), a = b.getChannelData(0);
   for (let i = 0; i < n; i++) a[i] = (Math.random() * 2 - 1) * (1 - i / n);
-  const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = b; g.gain.value = vol; s.connect(g).connect(ctx.destination); s.start();
+  const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = b; g.gain.value = vol; s.connect(g).connect(fx ?? ctx.destination); s.start();
 }
 
 export const sfx = {
