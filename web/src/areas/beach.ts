@@ -44,7 +44,7 @@ export function build(ctx: AreaContext, which = 'Calangute'): AreaInstance {
     put(new THREE.BoxGeometry(1.2, 1.2, 9), -5, 0, 1.1, 0x7a5a3a); put(new THREE.BoxGeometry(1.4, 0.12, 9.4), -5, 0, 1.75, 0xe8d8b0);   // the bar
     for (const f of [-1.5, 2.5]) for (const side of [-4, 0, 4]) { put(new THREE.CylinderGeometry(0.5, 0.5, 0.06, 10).translate(0, 0.78, 0), f, side, 0.5, 0xf6f2e8); put(new THREE.CylinderGeometry(0.05, 0.05, 0.75, 5).translate(0, 0.38, 0), f, side, 0.5, 0xd8d2c4); }   // tables
     // fairy lights along the front of the roof
-    for (let k = -7; k <= 7; k++) put(new THREE.SphereGeometry(0.1, 5, 4), 6.6, k, 3.4 - Math.abs(Math.sin(k * 0.6)) * 0.25, [0xffd34a, 0xff5a8a, 0x5ad0ff, 0xffffff][(k + 7) % 4], lights);
+    for (let k = -7; k <= 7; k++) put(new THREE.SphereGeometry(0.22, 6, 5), 6.6, k, 3.4 - Math.abs(Math.sin(k * 0.6)) * 0.25, [0xffd34a, 0xff5a8a, 0x5ad0ff, 0xffffff][(k + 7) % 4], lights);
     // sunbeds and umbrellas out front, towards the sea
     for (let r = 0; r < 2; r++) for (let c = -2; c <= 2; c++) {
       const f = 11 + r * 6, side = c * 3.2, col = CLOTH[(n + c + r) % CLOTH.length];
@@ -86,5 +86,5 @@ export function build(ctx: AreaContext, which = 'Calangute'): AreaInstance {
     { name: N[4], job: 'beach massage', outfit: 'frock', top: 0x7a3a8a, bottom: 0x7a3a8a, hair: 'grey', skin: 1, prop: 'bag', old: true, hint: 'kind', workAt: at(s0, 16, -6),
       lines: ['Massage, madam? Back, legs, head, everything. Your shoulders are like stone, I can see from here.', 'Twenty years on this beach. I have seen the shacks come and go every season.', 'Don\'t sleep in the sun after lunch, baba. Nap in the shade like a sensible Goan.'] },
   ];
-  return { group, cast, update: (_dt, time) => { bulb.color.setScalar(0.85 + Math.sin(time * 2.3) * 0.15); } };
+  return { group, cast, update: (_dt, time) => { const t = ctx.clock(), dark = t < 300 || t > 1150 ? 1 : t > 1050 ? (t - 1050) / 100 : t < 400 ? (400 - t) / 100 : 0; bulb.color.setScalar((0.8 + dark * 1.6) * (0.85 + Math.sin(time * 2.3) * 0.15)); } };
 }

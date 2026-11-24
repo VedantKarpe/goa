@@ -334,8 +334,11 @@ export function buildBuildings(d: PanjimData, g: Ground, segs: { ax: number; az:
   });
   const group = new THREE.Group(); group.name = 'buildings';
   const mat = facadeMaterial(facadeTexture(), windowsLit), ink = new THREE.LineBasicMaterial({ color: 0x1a120c, transparent: true, opacity: 0.8 });
-  for (const [k, bucket] of buckets) {
-    const merged = mergeGeometries(bucket, false)!;
+  for (const [k, all] of buckets) {
+    const bucket = all.filter(gg => gg && gg.attributes?.position && gg.attributes.position.count > 0);   // an odd footprint can give no geometry: leave it out
+    if (!bucket.length) continue;
+    const merged = mergeGeometries(bucket, false);
+    if (!merged) { console.warn("buildings: a chunk could not be merged", k, bucket.length); continue; }
     for (const gg of bucket) gg.dispose();
     const mesh = new THREE.Mesh(merged, mat);
     mesh.castShadow = true; mesh.receiveShadow = true;
