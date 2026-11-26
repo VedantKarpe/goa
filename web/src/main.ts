@@ -28,6 +28,7 @@ import { SalesAssistants } from './entities/salesAssistants';
 import { Bubbles, type Thing } from './ui/bubbles';
 import { Guide } from './ui/guide';
 import { Passport } from './ui/passport';
+import { titosAt } from './areas/titosSpot';
 import { Ambience } from './systems/ambience';
 import { Music } from './systems/music';
 import { areas as areaList } from './areas/registry';
@@ -89,6 +90,7 @@ async function start() {
   const og = oldGoaAt(d);   // Old Goa's churches: their own models, not the map's plain boxes
   const ogSpots = og ? [og.bomJesus, og.se, og.assisi, og.arch] : [];
   if (og && !d.places.some(p => p[0] === 'Old Goa')) d.places.push(['Old Goa', og.centre.x / T, og.centre.z / T]);
+  const tl = titosAt(d); if (tl && !d.places.some(p => p[0] === "Tito's Lane")) d.places.push(["Tito's Lane", tl.x / T, tl.z / T]);
   const plain = { ...d, b: d.b.filter(([f]) => {
     let cx = 0, cy = 0; for (let i = 0; i < f.length; i += 2) { cx += f[i]; cy += f[i + 1]; } cx /= f.length / 2; cy /= f.length / 2;
     if (kf && Math.hypot(cx * T - kf.x, cy * T - kf.z) < KF_R + 5) return false;
@@ -192,7 +194,7 @@ async function start() {
   const places2 = new Places(d, g, scene, p => hud.whisper(`Okay, ${p.name}. Follow the green light, baba. ${p.note}`, 6));
   const passport = new Passport(places2.list.map(p => p.name)); passport.onNew = () => sfx.done();
   // things to do, on the big map
-  const ACT: Record<string, [string, string]> = { 'Dona Paula': ['🛥️', 'Jet ski · Dona Paula'], 'Miramar': ['🚙', 'Stuck cars · Miramar'], 'Old Goa': ['⛪', 'Old Goa churches'], 'Kingfisher Villa': ['🏡', 'Kingfisher Villa'], 'IFFI': ['🎬', 'IFFI'], 'Fontainhas': ['🎨', 'Fontainhas lanes'] };
+  const ACT: Record<string, [string, string]> = { 'Dona Paula': ['🛥️', 'Jet ski · Dona Paula'], 'Miramar': ['🚙', 'Stuck cars · Miramar'], 'Old Goa': ['⛪', 'Old Goa churches'], 'Kingfisher Villa': ['🏡', 'Kingfisher Villa'], 'IFFI': ['🎬', 'IFFI'], 'Fontainhas': ['🎨', 'Fontainhas lanes'], "Tito's Lane": ['🪩', "Tito's Lane · nightlife"] };
   map.activities = areaList(d).filter(a => ACT[a.name]).map(a => ({ x: a.x, z: a.z, icon: ACT[a.name][0], name: ACT[a.name][1] }));
   // what's on: events and ads as pins on the big map; pick one to zoom in, read it and be guided there
   const evCard = new EventCard(
@@ -214,7 +216,7 @@ async function start() {
   places2.onHide = () => closeWhats();
   map.onOpen = () => { if (!whats) map.focus(px, pz, 110); }; map.onClose = () => closeWhats();
   // which town the child is in: the nearest of the towns on the map
-  const TOWNS: Record<string, string> = { 'Panaji': 'Panjim', 'Church Square': 'Panjim', 'Fontainhas': 'Panjim', 'Panjim Bazaar': 'Panjim', 'Campal': 'Panjim', 'Altinho': 'Panjim', 'Patto': 'Panjim', 'Miramar': 'Miramar', 'Caranzalem': 'Caranzalem', 'Dona Paula': 'Dona Paula', 'Taleigao': 'Taleigao', 'Goa University': 'Taleigao', 'Old Goa': 'Old Goa', 'Sinquerim': 'Sinquerim', 'Fort Aguada': 'Sinquerim', 'Kingfisher Villa': 'Sinquerim', 'Ribandar': 'Ribandar', 'Betim': 'Betim', 'Porvorim': 'Porvorim' };
+  const TOWNS: Record<string, string> = { 'Panaji': 'Panjim', 'Church Square': 'Panjim', 'Fontainhas': 'Panjim', 'Panjim Bazaar': 'Panjim', 'Campal': 'Panjim', 'Altinho': 'Panjim', 'Patto': 'Panjim', 'Miramar': 'Miramar', 'Caranzalem': 'Caranzalem', 'Dona Paula': 'Dona Paula', 'Taleigao': 'Taleigao', 'Goa University': 'Taleigao', 'Old Goa': 'Old Goa', 'Sinquerim': 'Sinquerim', 'Fort Aguada': 'Sinquerim', 'Kingfisher Villa': 'Sinquerim', 'Ribandar': 'Ribandar', 'Betim': 'Betim', 'Porvorim': 'Porvorim', "Tito's Lane": 'Baga' };
   const townAnchors = [...d.places.filter(q => TOWNS[q[0]]).map(q => ({ t: TOWNS[q[0]], x: q[1] * T, z: q[2] * T })), ...beachesOn(d).map(b => ({ t: b.name, x: b.x, z: b.z }))];
   const townEl = document.getElementById('town')!;
   for (const id of ['mapBtn', 'town']) document.getElementById(id)!.addEventListener('click', e => { (e.currentTarget as HTMLElement).blur(); if (!map.isBig) { map.focus(px, pz, 110); } });

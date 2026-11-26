@@ -8,6 +8,7 @@ import { kingfisherAt } from './kingfisherSpot';
 import { iffiAt } from './iffi';
 import { oldGoaAt } from './oldgoaSpot';
 import { beachesOn } from './beachSpot';
+import { titosAt } from './titosSpot';
 
 /** Miramar's sand (world tile centres): the base game uses it for the place pin and the beach cows. */
 export function beachSand(d: PanjimData): [number, number][] {
@@ -32,6 +33,8 @@ export function areas(d: PanjimData): AreaEntry[] {
   if (og) out.push({ name: 'Old Goa', ...og.centre, r: 450, load: () => import('./oldgoa') });
   // the North Goa beaches and their shacks (only on a map that reaches them)
   for (const b of beachesOn(d)) out.push({ name: b.name + ' beach', x: b.x, z: b.z, r: 1500, load: () => import('./beach').then(m => ({ build: (ctx: Parameters<typeof m.build>[0]) => m.build(ctx, b.name) })) });
+  const tl = titosAt(d);   // Tito's Lane, Baga: the party lane
+  if (tl) out.push({ name: "Tito's Lane", ...tl, r: 450, load: () => import('./titos') });
   out.push({ name: 'Dona Paula', x: (DP.circle.x + DP.beach.x) / 2, z: (DP.circle.z + DP.view.z) / 2, r: 550, load: () => import('./donapaula') });
   return out;
 }
