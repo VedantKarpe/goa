@@ -8,6 +8,8 @@ const COL: Record<string, string> = { G: '#5c7a40', F: '#3d6b38', M: '#2a4a30', 
 
 export class Minimap {
   private base: HTMLCanvasElement;
+  // the same map as shapes (tile units), drawn crisp at any zoom on the big map
+  private vWater = new Path2D(); private vBld = new Path2D(); private vRoads: [number, Path2D][] = [];
   private fog: Uint8Array;
   private fogImg: ImageData;
   private fogCan: HTMLCanvasElement;
@@ -37,6 +39,12 @@ export class Minimap {
     c.fillStyle = '#c9b89a'; for (const [f] of d.b) { c.beginPath(); pts(f).forEach(([x, y], i) => i ? c.lineTo(x * S, y * S) : c.moveTo(x * S, y * S)); c.fill(); }
     c.strokeStyle = '#ece4cf'; c.lineCap = 'round';
     for (const [f, w] of d.r) { c.lineWidth = Math.max(1, w * 1.5 / T * S); c.beginPath(); pts(f).forEach(([x, y], i) => i ? c.lineTo(x * S, y * S) : c.moveTo(x * S, y * S)); c.stroke(); }
+    const path = (into: Path2D, f: Parameters<typeof pts>[0], close: boolean) => { pts(f).forEach(([x, y], i) => i ? into.lineTo(x, y) : into.moveTo(x, y)); if (close) into.closePath(); };
+    for (const f of d.water) path(this.vWater, f, true);
+    for (const [f] of d.b) path(this.vBld, f, true);
+    const byW = new Map<number, Path2D>();
+    for (const [f, w] of d.r) { const lw = Math.round(w * 1.5 / T * 4) / 4; let p2 = byW.get(lw); if (!p2) byW.set(lw, p2 = new Path2D()); path(p2, f, false); }
+    this.vRoads = [...byW.entries()].sort((a, b) => b[0] - a[0]);
     this.fog = new Uint8Array(d.W * d.H);
     this.fogCan = document.createElement('canvas'); this.fogCan.width = d.W; this.fogCan.height = d.H;
     this.fogImg = this.fogCan.getContext('2d')!.createImageData(d.W, d.H);
@@ -135,8 +143,10 @@ export class Minimap {
       this.fogCan.getContext('2d')!.putImageData(this.fogImg, 0, 0); this.dirty = false;
     }
     const cv = this.cv, W = cv.clientWidth, H = cv.clientHeight;
-    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    const dpr = Math.min(2, window.devicePixelRatio || 1);   // sharp on phones and retina screens
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
     const c = cv.getContext('2d')!;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
     // small: 30 tiles across around the child; big: the whole of Panjim
     let span = this.big ? Math.max(this.d.W, this.d.H * W / H) : 30, fx = this.d.W / 2, fy = this.d.H / 2;
     if (this.big && this.view && this.zoom) {   // ease towards the zoom
@@ -146,8 +156,17 @@ export class Minimap {
     const k = W / span;
     const ox = this.big ? W / 2 - fx * k : W / 2 - (cx / T) * k, oy = this.big ? H / 2 - fy * k : H / 2 - (cz / T) * k;
     c.fillStyle = '#0a1020'; c.fillRect(0, 0, W, H);
-    c.imageSmoothingEnabled = !this.big || k < 6;
+    c.imageSmoothingEnabled = true;
     c.drawImage(this.base, ox, oy, this.d.W * k, this.d.H * k);
+    if (this.big && k > 2.5) {   // zoomed in: water, houses and roads as shapes, crisp instead of the blocky picture
+      c.save(); c.setTransform(dpr * k, 0, 0, dpr * k, dpr * ox, dpr * oy);
+      c.fillStyle = '#2b6a8a'; c.fill(this.vWater);
+      c.fillStyle = '#c9b89a'; c.fill(this.vBld); c.strokeStyle = 'rgba(90,70,50,.55)'; c.lineWidth = 1 / k; c.stroke(this.vBld);
+      c.lineCap = c.lineJoin = 'round';
+      c.strokeStyle = '#8a8478'; for (const [lw, p2] of this.vRoads) { c.lineWidth = lw + 2 / k; c.stroke(p2); }
+      c.strokeStyle = '#ece4cf'; for (const [lw, p2] of this.vRoads) { c.lineWidth = Math.max(lw, 1.2 / k); c.stroke(p2); }
+      c.restore();
+    }
     if (night) { c.fillStyle = 'rgba(10,16,40,.45)'; c.fillRect(0, 0, W, H); }
     c.imageSmoothingEnabled = true;
     c.drawImage(this.fogCan, ox, oy, this.d.W * k, this.d.H * k);
