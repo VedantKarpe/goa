@@ -1,6 +1,7 @@
 // What's on in Goa: events, ads and stories, each a pin at its real place on the map. The lists are data
 // (public/data/events.json and stories.json), so new ones go in without touching the game. Events show only while they are
 // on or coming up in the next few weeks; stories stay.
+import { beachesOn, shacksOf } from '../areas/beachSpot';
 import { T, type PanjimData } from '../world/data';
 
 export interface GoaEvent {
@@ -8,7 +9,7 @@ export interface GoaEvent {
   /** A story: its full text (paragraphs split by blank lines), photos (paths under public/), and who shared it. */
   text?: string; photos?: string[]; by?: string;
   /** A business listing: what it is known for, when it is open, the price, and how to reach it (a sample shows how it works). */
-  speciality?: string; hours?: string; price?: string; phone?: string; whatsapp?: string; instagram?: string; sample?: boolean;
+  speciality?: string; pitch?: string; beach?: string; shack?: number; hours?: string; price?: string; phone?: string; whatsapp?: string; instagram?: string; sample?: boolean;
   /** A name on the map (a place, a named building, a shop, a landmark), or lat/lon. */
   place?: string; lat?: number; lon?: number;
   from: string; to: string;                // dates, YYYY-MM-DD (inclusive)
@@ -19,6 +20,10 @@ export interface GoaEvent {
 const DAY = 864e5, AHEAD = 35;             // days ahead to show upcoming events
 
 function locate(d: PanjimData, e: Partial<GoaEvent>): { x: number; z: number } | null {
+  if (e.beach && e.shack) {   // a beach shack: where that shack stands
+    const b = beachesOn(d).find(q => q.name === e.beach), s = b && shacksOf(d, b).find(q => q.n === e.shack);
+    if (s) return { x: s.x, z: s.z };
+  }
   if (e.place) {
     const n = e.place.toLowerCase(), eq = (s: string) => s.toLowerCase() === n;
     const p = d.places.find(q => eq(q[0])); if (p) return { x: p[1] * T, z: p[2] * T };

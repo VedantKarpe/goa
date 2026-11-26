@@ -574,6 +574,7 @@ async function start() {
         for (const p of people.list) if (p.phase !== 'home' && !quests.waiting.some(q => Math.hypot(q.at!.x - p.x, q.at!.z - p.z) < 3)) add('p' + p.c.name, p.x, p.z, '💬', p.c.name.split(' ')[0].replace(/^(Mrs?\.|Mr\.|Fr\.|Dr\.)$/, p.c.name.split(' ')[1] ?? ''), () => go(p.x, p.z, () => talk(p)), 3.2);
         for (const t of assistants.list) add('t' + t.shop.name, t.x, t.z, '₹', 'Deals', () => go(t.x, t.z, () => talk(t)), 3.2);
         for (const a of pets.list) if (a !== pets.mine) add('a' + a.hx + ',' + a.hz, a.x, a.z, '🍪', a.kind === 'dog' ? 'Feed' : 'Cat', () => go(a.x, a.z, () => talk(a)), 1.3);
+        for (const e of map.events ?? []) if (e.type === 'business') add('b' + e.id, e.x, e.z, '🏪', e.title.replace(' (sample)', ''), () => evCard.show(e), 5.5);
         const car = drive.near(px, pz, 14); if (car) add('car', car.x, car.z, '🚗', 'Drive', () => go(car.x, car.z, () => lift()), 2.6);
       }
       list.sort((a, b) => a.d - b.d); bubbles.set(list.slice(0, 6));

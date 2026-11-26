@@ -1,8 +1,23 @@
 [
-  { "id": "sample-shack", "title": "Sunset Shack (sample)", "where": "Calangute beach", "lat": 15.5440, "lon": 73.7553, "sample": true,
+  { "id": "sample-shack", "title": "Sunset Shack (sample)", "where": "Calangute beach", "beach": "Calangute", "shack": 1, "sample": true,
     "blurb": "A sample listing: this is how a shack, a café or a small shop appears in virtual Goa.",
     "speciality": "Kingfish thali, butter-garlic prawns, sol kadi",
+    "pitch": "Patrao! Sunset Shack, kingfish thali fresh from the boats. Sunbeds free if you eat with us!",
     "hours": "Open daily 8 am – 11 pm (season: Oct – May)", "price": "₹₹ · about ₹600 for two",
     "photos": [], "phone": "", "whatsapp": "", "instagram": "",
-    "text": "Run by the same family for twenty seasons. Sunbeds are free when you order, the fish comes off the boats at seven, and the sunset is on the house." }
+    "text": "Run by the same family for twenty seasons. Sunbeds are free when you order, the fish comes off the boats at seven, and the sunset is on the house." },
+  { "id": "sample-tide", "title": "Tide & Toddy (sample)", "where": "Candolim beach", "beach": "Candolim", "shack": 1, "sample": true,
+    "blurb": "A sample listing: a made-up shack, to show how a beach business looks here.",
+    "speciality": "Prawn balchão, crab xec xec, fresh coconut feni cocktails",
+    "pitch": "Bhai, come to Tide & Toddy! Crab xec xec like my mother makes. Try once, you'll come back.",
+    "hours": "Open daily 9 am – midnight", "price": "₹₹ · about ₹700 for two",
+    "photos": [], "phone": "", "whatsapp": "", "instagram": "",
+    "text": "Quiet end of the beach, hammocks between the palms, and a live guitar on Friday nights." },
+  { "id": "sample-kingfish", "title": "Kingfish Corner (sample)", "where": "Baga beach", "beach": "Baga", "shack": 1, "sample": true,
+    "blurb": "A sample listing: a made-up shack, to show how a beach business looks here.",
+    "speciality": "Rava-fried kingfish, chicken cafreal, bebinca",
+    "pitch": "Patrao, patrao! Kingfish Corner, rava fry crispy-crispy. Bebinca on the house for the kids!",
+    "hours": "Open daily 10 am – 1 am", "price": "₹₹ · about ₹650 for two",
+    "photos": [], "phone": "", "whatsapp": "", "instagram": "",
+    "text": "Right by the action at Baga: fish on the grill all evening and the fairy lights on till late." }
 ]

@@ -33,6 +33,7 @@ export function build(ctx: AreaContext, which = 'Calangute'): AreaInstance {
   const b = beaches.find(q => q.name === which) ?? beaches[0];
   const shacks = shacksOf(ctx.d, b);
   let n = 0;
+  const signs = new Map<number, THREE.Mesh>();
   for (const s of shacks) {
     const fx = Math.cos(s.face), fz = Math.sin(s.face), sx = -fz, sz = fx, rot = -s.face, base = gy(s.x, s.z);
     const put = (g: THREE.BufferGeometry, f: number, side: number, y: number, col: number, into = parts) => into.push(tint(g.rotateY(rot).translate(s.x + fx * f + sx * side, base + y, s.z + fz * f + sz * side), col));
@@ -53,6 +54,7 @@ export function build(ctx: AreaContext, which = 'Calangute'): AreaInstance {
     }
     // the name board on two poles at the back, facing the beach path
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.9), new THREE.MeshBasicMaterial({ map: board(`Shack ${s.n}`, 'Your shack here · DM @goabuilder'), side: THREE.DoubleSide }));
+    signs.set(s.n, sign);
     sign.position.set(s.x - fx * 7.6, base + 4.6, s.z - fz * 7.6); sign.rotation.y = rot - Math.PI / 2; group.add(sign);
     put(new THREE.CylinderGeometry(0.1, 0.1, 4, 5).translate(0, 2, 0), -7.6, -2.6, 0, BAMBOO); put(new THREE.CylinderGeometry(0.1, 0.1, 4, 5).translate(0, 2, 0), -7.6, 2.6, 0, BAMBOO);
     n++;
@@ -86,5 +88,14 @@ export function build(ctx: AreaContext, which = 'Calangute'): AreaInstance {
     { name: N[4], job: 'beach massage', outfit: 'frock', top: 0x7a3a8a, bottom: 0x7a3a8a, hair: 'grey', skin: 1, prop: 'bag', old: true, hint: 'kind', workAt: at(s0, 16, -6),
       lines: ['Massage, madam? Back, legs, head, everything. Your shoulders are like stone, I can see from here.', 'Twenty years on this beach. I have seen the shacks come and go every season.', 'Don\'t sleep in the sun after lunch, baba. Nap in the shade like a sensible Goan.'] },
   ];
+  // shacks with a listing: their name on the board, and the waiter pitches its speciality
+  fetch(`${import.meta.env.BASE_URL}data/businesses.json`, { cache: 'no-cache' }).then(r => r.ok ? r.json() : []).then((bz: { title: string; beach?: string; shack?: number; speciality?: string; pitch?: string }[]) => {
+    for (const z of bz) {
+      if (z.beach !== B || !z.shack) continue;
+      const sign = signs.get(z.shack); if (!sign) continue;
+      const mt = sign.material as THREE.MeshBasicMaterial; mt.map?.dispose(); mt.map = board(z.title.replace(' (sample)', ''), z.speciality?.split(',')[0] ?? 'Tap the 🏪 to see more'); mt.needsUpdate = true;
+      if (z.shack === 1 && z.pitch) cast[0].lines.unshift(z.pitch);
+    }
+  }).catch(() => { /* no listings */ });
   return { group, cast, update: (_dt, time) => { const t = ctx.clock(), dark = t < 300 || t > 1150 ? 1 : t > 1050 ? (t - 1050) / 100 : t < 400 ? (400 - t) / 100 : 0; bulb.color.setScalar((0.8 + dark * 1.6) * (0.85 + Math.sin(time * 2.3) * 0.15)); } };
 }
