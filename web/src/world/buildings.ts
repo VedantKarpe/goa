@@ -1,6 +1,7 @@
 // Every building from its real outline: walls extruded to its storeys on a level plot, a flat terrace or a hipped
 // Mangalore-tile roof, all merged into one mesh (one draw call) with ink outlines, plus the lookup that makes them solid.
 import * as THREE from 'three';
+import { LazyChunks } from './lazy';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Ground, T, pts, inPoly, type PanjimData } from './data';
 import { BAY, facadeTexture, facadeMaterial } from './facade';
@@ -221,7 +222,7 @@ function goanDetails(out: THREE.BufferGeometry[], p: [number, number][], base: n
   }
 }
 
-export function buildBuildings(d: PanjimData, g: Ground, segs: { ax: number; az: number; bx: number; bz: number; half: number }[] = []): { group: THREE.Group; list: Building[] } {
+export function buildBuildings(d: PanjimData, g: Ground, segs: { ax: number; az: number; bx: number; bz: number; half: number }[] = []): { group: THREE.Group; list: Building[]; lazy: LazyChunks } {
   // which side of a house faces the street: the edge whose middle is nearest a street (a coarse grid over the streets)
   const SG = new Map<number, { ax: number; az: number; bx: number; bz: number; half: number }[]>();
   for (const sg of segs) for (let t = 0; t <= 1; t += 0.25) { const x = sg.ax + (sg.bx - sg.ax) * t, z = sg.az + (sg.bz - sg.az) * t, k = Math.floor(x / 40) * 4096 + Math.floor(z / 40); let a = SG.get(k); if (!a) SG.set(k, a = []); if (!a.includes(sg)) a.push(sg); }
@@ -231,6 +232,8 @@ export function buildBuildings(d: PanjimData, g: Ground, segs: { ax: number; az:
   // buildings are merged by map squares (CHUNK metres across), one mesh each: squares off-screen are skipped by the
   // camera's frustum test, and far ones are hidden (cullChunks), so a big map costs little more than a small one
   const buckets = new Map<number, THREE.BufferGeometry[]>(), list: Building[] = [];
+  const jobs = new Map<THREE.BufferGeometry[], (() => void)[]>();
+  const jobsFor = (bk: THREE.BufferGeometry[]) => { let j = jobs.get(bk); if (!j) jobs.set(bk, j = []); return j; };
   let geos: THREE.BufferGeometry[] = [];
   const fq = d.places.find(q => q[0] === 'Fontainhas'), QX = (fq?.[1] ?? -99) * T, QZ = (fq?.[2] ?? -99) * T, QR = 180;
   const roofFlat = new THREE.Color(0xb8b2a4), roofTile = new THREE.Color(0xa8432a), white = new THREE.Color(0xfaf8f2), ochre = new THREE.Color(0xecd6a0);
@@ -255,99 +258,109 @@ export function buildBuildings(d: PanjimData, g: Ground, segs: { ax: number; az:
     if (style === 'temple') storeys = Math.max(1, Math.min(2, lv));
     const h = storeys * STOREY * (kind === 1 || style === 'church' ? 1.6 : kind === 2 ? 1.2 : small ? 0.9 : 1);
     const base = Math.min(...p.map(([x, z]) => g.heightAt(x, z)));
-    const shape = new THREE.Shape(p.map(([x, z]) => new THREE.Vector2(x, -z)));
-    const geo = new THREE.ExtrudeGeometry(shape, { depth: h + 1.5, bevelEnabled: false });   // 1.5 m below the plot so slopes never show a gap
-    geo.rotateX(-Math.PI / 2); geo.translate(0, base - 1.5, 0);
-    wallUV(geo, base);
     const wall = ov?.color !== undefined ? new THREE.Color(ov.color) : style === 'pub' ? new THREE.Color(PUB_COLS[idx % PUB_COLS.length]) : style === 'modern' ? new THREE.Color(MODERN_COLS[idx % MODERN_COLS.length])
       : kind === 1 || style === 'church' ? white : kind === 2 || style === 'temple' ? ochre : quarter ? new THREE.Color(QUARTER_COLS[(idx * 5 + p.length) % QUARTER_COLS.length]) : new THREE.Color(PALETTE[(idx * 7 + p.length) % PALETTE.length]);
     // tiled hip roofs on houses, the old public buildings and the churches; flat on modern blocks and temples
     if (NEW_LOOK) wall.lerp(LIME, kind || style ? 0.1 : 0.24);   // the new look: lime-washed, sun-faded Goan colours rather than toy primaries
     const tiled = quarter || style === 'pub' || style === 'church' || (!kind && !style && area < 1400);
-    colorGeo(geo, wall, tiled ? (NEW_LOOK ? roofTile.clone().offsetHSL(((idx * 37) % 11 - 5) * 0.004, 0, ((idx * 53) % 9 - 4) * 0.02) : roofTile) : style === 'modern' ? new THREE.Color(0x9a9c9e) : kind === 1 ? white : roofFlat);
-    geos.push(geo);
-    if (tiled) {
-      // a hip roof over simple shapes; a band of tiles all round the eaves over L, U and courtyard shapes
-      const rise = style === 'church' ? Math.max(4, Math.sqrt(area) * 0.3) : Math.min(style === 'pub' ? 6 : 3.2, Math.sqrt(area) * 0.22);
-      const r = convex(p) && p.length <= 8 ? hipRoof(p, base + h, rise, roofTile) : skirtRoof(p, base + h, 7, Math.min(rise, 3.5), roofTile);
-      wallUV(r, 0); if (!convex(p) || p.length > 8) { const uv = r.attributes.uv as THREE.BufferAttribute; for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.01, 0.6); }
-      geos.push(r);
-    }
-    const cx = p.reduce((a, q) => a + q[0], 0) / p.length, cz = p.reduce((a, q) => a + q[1], 0) / p.length;
-    if (NEW_LOOK && !kind && style !== 'church' && style !== 'temple' && convex(p) && p.length <= 8) {
-      const flats = style === 'modern' || storeys >= 3 && area > 250;
-      let front = 0, fd = 1e9; for (let i = 0; i < p.length; i++) { const a = p[i], b2 = p[(i + 1) % p.length]; const dd = streetDist((a[0] + b2[0]) / 2, (a[1] + b2[1]) / 2); if (dd < fd) { fd = dd; front = i; } }
-      if (flats || area < 700) goanDetails(geos, p, base, h, storeys, flats, front, tiled ? roofTile : roofFlat, idx, fd);
-    }
-    if (style === 'church') {
-      // as St. Inez and the Panjim chapels: a white baroque front at the end of the nave, a scrolled gable with a cross
-      // in the middle and a small bell tower either side
-      const far = p.reduce((a, q) => (Math.hypot(q[0] - cx, q[1] - cz) > Math.hypot(a[0] - cx, a[1] - cz) ? q : a));
-      const fx = far[0] + (cx - far[0]) * 0.15, fz = far[1] + (cz - far[1]) * 0.15;     // the front, a little in from the end
-      const ax = cx - fx, az = cz - fz, al = Math.hypot(ax, az) || 1, sx = -az / al, sz = ax / al;   // across the front
-      const half = Math.min(9, Math.sqrt(area) * 0.35), ang = Math.atan2(sx, sz);
-      const piece = (geo: THREE.BufferGeometry, x: number, y: number, z: number, col: number) => { geo.rotateY(ang); geo.translate(x, y, z); geos.push(solid(geo, col)); };
-      piece(new THREE.BoxGeometry(half * 1.2, 4.5, 1.2), fx, base + h + 2.25, fz, 0xfaf8f2);                       // the gable
-      piece(new THREE.CylinderGeometry(half * 0.55, half * 0.55, 1.2, 12, 1, false, 0, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2), fx, base + h + 4.5, fz, 0xfaf8f2);
-      piece(new THREE.BoxGeometry(0.4, 3, 0.4), fx, base + h + 6.5 + half * 0.4, fz, 0xf2efe6);                   // the cross
-      piece(new THREE.BoxGeometry(1.6, 0.4, 0.4), fx, base + h + 7 + half * 0.4, fz, 0xf2efe6);
-      for (const side of [-1, 1]) {
-        const tx = fx + sx * half * side, tz = fz + sz * half * side, th = Math.min(h + 5, 18);
-        piece(new THREE.BoxGeometry(3.2, th, 3.2), tx, base + th / 2, tz, 0xfaf8f2);
-        piece(new THREE.BoxGeometry(3.6, 0.5, 3.6), tx, base + th, tz, 0xe8e2d4);
-        piece(new THREE.SphereGeometry(1.5, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), tx, base + th + 0.2, tz, 0xfaf8f2);
+    const into = geos;   // this building's square
+    jobsFor(geos).push(() => {
+      const geos = into;
+    const shape = new THREE.Shape(p.map(([x, z]) => new THREE.Vector2(x, -z)));
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: h + 1.5, bevelEnabled: false });   // 1.5 m below the plot so slopes never show a gap
+      geo.rotateX(-Math.PI / 2); geo.translate(0, base - 1.5, 0);
+      wallUV(geo, base);
+      colorGeo(geo, wall, tiled ? (NEW_LOOK ? roofTile.clone().offsetHSL(((idx * 37) % 11 - 5) * 0.004, 0, ((idx * 53) % 9 - 4) * 0.02) : roofTile) : style === 'modern' ? new THREE.Color(0x9a9c9e) : kind === 1 ? white : roofFlat);
+      geos.push(geo);
+      if (tiled) {
+        // a hip roof over simple shapes; a band of tiles all round the eaves over L, U and courtyard shapes
+        const rise = style === 'church' ? Math.max(4, Math.sqrt(area) * 0.3) : Math.min(style === 'pub' ? 6 : 3.2, Math.sqrt(area) * 0.22);
+        const r = convex(p) && p.length <= 8 ? hipRoof(p, base + h, rise, roofTile) : skirtRoof(p, base + h, 7, Math.min(rise, 3.5), roofTile);
+        wallUV(r, 0); if (!convex(p) || p.length > 8) { const uv = r.attributes.uv as THREE.BufferAttribute; for (let i = 0; i < uv.count; i++) uv.setXY(i, 0.01, 0.6); }
+        geos.push(r);
       }
-    }
-    if (style === 'temple') {
-      // as the Mahalaxmi and Maruti temples: a tower of saffron-and-white tiers, each ringed with small domes, a dome on top
-      // and a golden kalash; a smaller tower over the hall as well
-      const tower = (tx: number, tz: number, w0: number, tiers: number) => {
-        let y = base + h, w = w0;
-        for (let k = 0; k < tiers; k++) {
-          const th = 2.6;
-          geos.push(solid(new THREE.BoxGeometry(w, th, w).translate(tx, y + th / 2, tz), k % 2 ? 0xf2efe6 : 0xe8742a));
-          for (const [dx, dz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) geos.push(solid(new THREE.SphereGeometry(w * 0.13, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2).translate(tx + dx * w * 0.42, y + th, tz + dz * w * 0.42), 0xd8502a));
-          y += th; w *= 0.78;
-        }
-        geos.push(solid(new THREE.SphereGeometry(w * 0.62, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2).translate(tx, y, tz), 0xd8502a));
-        geos.push(solid(new THREE.ConeGeometry(0.5, 2.4, 8).translate(tx, y + w * 0.62 + 1.2, tz), 0xf2c230));
-      };
-      const w0 = Math.min(11, Math.sqrt(area) * 0.45);
-      const far = p.reduce((a, q) => (Math.hypot(q[0] - cx, q[1] - cz) > Math.hypot(a[0] - cx, a[1] - cz) ? q : a));
-      tower(cx + (far[0] - cx) * 0.35, cz + (far[1] - cz) * 0.35, w0, 5);
-      tower(cx - (far[0] - cx) * 0.25, cz - (far[1] - cz) * 0.25, w0 * 0.6, 2);
-    }
-    if (style === 'modern') {
-      // a water tank / lift room on the flat roof, and white vertical fins up the walls (as on the Municipal building)
-      geos.push(solid(new THREE.BoxGeometry(5, 3, 4).translate(cx, base + h + 1.5, cz), 0xb8b8b4));
-      for (let i = 0; i < p.length; i++) {
-        const a = p[i], b2 = p[(i + 1) % p.length], L = Math.hypot(b2[0] - a[0], b2[1] - a[1]);
-        for (let s2 = 4; s2 < L - 2; s2 += 8) {
-          const fx = a[0] + (b2[0] - a[0]) * s2 / L, fz = a[1] + (b2[1] - a[1]) * s2 / L;
-          geos.push(solid(new THREE.BoxGeometry(0.8, h, 0.8).translate(fx, base + h / 2, fz), 0xf2efe6));
+      const cx = p.reduce((a, q) => a + q[0], 0) / p.length, cz = p.reduce((a, q) => a + q[1], 0) / p.length;
+      if (NEW_LOOK && !kind && style !== 'church' && style !== 'temple' && convex(p) && p.length <= 8) {
+        const flats = style === 'modern' || storeys >= 3 && area > 250;
+        let front = 0, fd = 1e9; for (let i = 0; i < p.length; i++) { const a = p[i], b2 = p[(i + 1) % p.length]; const dd = streetDist((a[0] + b2[0]) / 2, (a[1] + b2[1]) / 2); if (dd < fd) { fd = dd; front = i; } }
+        if (flats || area < 700) goanDetails(geos, p, base, h, storeys, flats, front, tiled ? roofTile : roofFlat, idx, fd);
+      }
+      if (style === 'church') {
+        // as St. Inez and the Panjim chapels: a white baroque front at the end of the nave, a scrolled gable with a cross
+        // in the middle and a small bell tower either side
+        const far = p.reduce((a, q) => (Math.hypot(q[0] - cx, q[1] - cz) > Math.hypot(a[0] - cx, a[1] - cz) ? q : a));
+        const fx = far[0] + (cx - far[0]) * 0.15, fz = far[1] + (cz - far[1]) * 0.15;     // the front, a little in from the end
+        const ax = cx - fx, az = cz - fz, al = Math.hypot(ax, az) || 1, sx = -az / al, sz = ax / al;   // across the front
+        const half = Math.min(9, Math.sqrt(area) * 0.35), ang = Math.atan2(sx, sz);
+        const piece = (geo: THREE.BufferGeometry, x: number, y: number, z: number, col: number) => { geo.rotateY(ang); geo.translate(x, y, z); geos.push(solid(geo, col)); };
+        piece(new THREE.BoxGeometry(half * 1.2, 4.5, 1.2), fx, base + h + 2.25, fz, 0xfaf8f2);                       // the gable
+        piece(new THREE.CylinderGeometry(half * 0.55, half * 0.55, 1.2, 12, 1, false, 0, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2), fx, base + h + 4.5, fz, 0xfaf8f2);
+        piece(new THREE.BoxGeometry(0.4, 3, 0.4), fx, base + h + 6.5 + half * 0.4, fz, 0xf2efe6);                   // the cross
+        piece(new THREE.BoxGeometry(1.6, 0.4, 0.4), fx, base + h + 7 + half * 0.4, fz, 0xf2efe6);
+        for (const side of [-1, 1]) {
+          const tx = fx + sx * half * side, tz = fz + sz * half * side, th = Math.min(h + 5, 18);
+          piece(new THREE.BoxGeometry(3.2, th, 3.2), tx, base + th / 2, tz, 0xfaf8f2);
+          piece(new THREE.BoxGeometry(3.6, 0.5, 3.6), tx, base + th, tz, 0xe8e2d4);
+          piece(new THREE.SphereGeometry(1.5, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), tx, base + th + 0.2, tz, 0xfaf8f2);
         }
       }
-    }
+      if (style === 'temple') {
+        // as the Mahalaxmi and Maruti temples: a tower of saffron-and-white tiers, each ringed with small domes, a dome on top
+        // and a golden kalash; a smaller tower over the hall as well
+        const tower = (tx: number, tz: number, w0: number, tiers: number) => {
+          let y = base + h, w = w0;
+          for (let k = 0; k < tiers; k++) {
+            const th = 2.6;
+            geos.push(solid(new THREE.BoxGeometry(w, th, w).translate(tx, y + th / 2, tz), k % 2 ? 0xf2efe6 : 0xe8742a));
+            for (const [dx, dz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) geos.push(solid(new THREE.SphereGeometry(w * 0.13, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2).translate(tx + dx * w * 0.42, y + th, tz + dz * w * 0.42), 0xd8502a));
+            y += th; w *= 0.78;
+          }
+          geos.push(solid(new THREE.SphereGeometry(w * 0.62, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2).translate(tx, y, tz), 0xd8502a));
+          geos.push(solid(new THREE.ConeGeometry(0.5, 2.4, 8).translate(tx, y + w * 0.62 + 1.2, tz), 0xf2c230));
+        };
+        const w0 = Math.min(11, Math.sqrt(area) * 0.45);
+        const far = p.reduce((a, q) => (Math.hypot(q[0] - cx, q[1] - cz) > Math.hypot(a[0] - cx, a[1] - cz) ? q : a));
+        tower(cx + (far[0] - cx) * 0.35, cz + (far[1] - cz) * 0.35, w0, 5);
+        tower(cx - (far[0] - cx) * 0.25, cz - (far[1] - cz) * 0.25, w0 * 0.6, 2);
+      }
+      if (style === 'modern') {
+        // a water tank / lift room on the flat roof, and white vertical fins up the walls (as on the Municipal building)
+        geos.push(solid(new THREE.BoxGeometry(5, 3, 4).translate(cx, base + h + 1.5, cz), 0xb8b8b4));
+        for (let i = 0; i < p.length; i++) {
+          const a = p[i], b2 = p[(i + 1) % p.length], L = Math.hypot(b2[0] - a[0], b2[1] - a[1]);
+          for (let s2 = 4; s2 < L - 2; s2 += 8) {
+            const fx = a[0] + (b2[0] - a[0]) * s2 / L, fz = a[1] + (b2[1] - a[1]) * s2 / L;
+            geos.push(solid(new THREE.BoxGeometry(0.8, h, 0.8).translate(fx, base + h / 2, fz), 0xf2efe6));
+          }
+        }
+      }
+    });
     let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
     for (const [x, z] of p) { x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); }
     list.push({ p, bb: [x0, z0, x1, z1], base, top: base + h, quarter, wall: wall.getHex() });
   });
   const group = new THREE.Group(); group.name = 'buildings';
   const mat = facadeMaterial(facadeTexture(), windowsLit), ink = new THREE.LineBasicMaterial({ color: 0x1a120c, transparent: true, opacity: 0.8 });
+  const lazy = new LazyChunks();
   for (const [k, all] of buckets) {
-    const bucket = all.filter(gg => gg && gg.attributes?.position && gg.attributes.position.count > 0);   // an odd footprint can give no geometry: leave it out
-    if (!bucket.length) continue;
-    const merged = mergeGeometries(bucket, false);
-    if (!merged) { console.warn("buildings: a chunk could not be merged", k, bucket.length); continue; }
-    for (const gg of bucket) gg.dispose();
-    const mesh = new THREE.Mesh(merged, mat);
-    mesh.castShadow = true; mesh.receiveShadow = true;
-    const chunk = new THREE.Group(); chunk.add(mesh);
-    if (!NEW_LOOK) chunk.add(new THREE.LineSegments(new THREE.EdgesGeometry(merged, 35), ink));
-    chunk.userData.cx = (Math.floor(k / 4096) + 0.5) * CHUNK; chunk.userData.cz = ((k % 4096 + 4096) % 4096 + 0.5) * CHUNK;
-    group.add(chunk);
+    const cx = (Math.floor(k / 4096) + 0.5) * CHUNK, cz = ((k % 4096 + 4096) % 4096 + 0.5) * CHUNK;
+    lazy.add(k, cx, cz, () => {
+      for (const job of jobs.get(all) ?? []) job();
+      const bucket = all.filter(gg => gg && gg.attributes?.position && gg.attributes.position.count > 0);   // an odd footprint can give no geometry: leave it out
+      if (!bucket.length) return;
+      const merged = mergeGeometries(bucket, false);
+      if (!merged) { console.warn('buildings: a square could not be merged', k, bucket.length); return; }
+      for (const gg of bucket) gg.dispose();
+      all.length = 0;
+      const mesh = new THREE.Mesh(merged, mat);
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      const chunk = new THREE.Group(); chunk.add(mesh);
+      if (!NEW_LOOK) chunk.add(new THREE.LineSegments(new THREE.EdgesGeometry(merged, 35), ink));
+      chunk.userData.cx = cx; chunk.userData.cz = cz;
+      group.add(chunk);
+    });
   }
-  return { group, list };
+  return { group, list, lazy };
 }
 
 /** A grid over the buildings, so walking into one is a quick check. */

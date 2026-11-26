@@ -29,7 +29,10 @@ export function showLoader() {
 }
 
 /** Move the bar (0 to 100) and say what is happening; gives the page a moment to draw it before the next heavy step. */
+/** How long each loading step took (for tuning): [label, ms since the page started]. */
+export const loadTimes: [string, number][] = [];
 export async function loaderStep(pct: number, text?: string) {
+  loadTimes.push([text ?? String(pct), Math.round(performance.now())]); (window as unknown as { loadTimes: unknown }).loadTimes = loadTimes;
   if (bar) bar.style.width = `${Math.max(2, Math.min(100, pct))}%`;
   if (text && label) label.textContent = text;
   // a frame to draw the bar; but never wait on it (a tab in the background draws no frames, and would never load)

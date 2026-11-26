@@ -26,6 +26,7 @@ export function buildStreetLife(net: Network, g: Ground, free: (x: number, z: nu
   const cb = new Map<number, { geos: THREE.BufferGeometry[]; cars: ParkedCar[] }>(), zb = new Map<number, THREE.BufferGeometry[]>();
   const key = (x: number, z: number) => Math.floor(x / CHUNK) * 4096 + Math.floor(z / CHUNK);
   const parked: ParkedCar[] = [];
+  const templates = new Map<string, THREE.BufferGeometry>();
   let seed = 77; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const at = (x: number, z: number) => g.heightAt(x, z);
   for (let e = 0; e < net.edges.length; e++) {
@@ -42,7 +43,9 @@ export function buildStreetLife(net: Network, g: Ground, free: (x: number, z: nu
       const c = CAR_COLS[Math.floor(rnd() * CAR_COLS.length)], ang = -Math.atan2(p.dz, p.dx), y = Math.max(0.6, at(x, z)) + 0.2;
       // a real Goan car (Swift, Alto, Innova, Thar...), parked
       const model = pick(ROAD_MIX, rnd()), col = Math.random() < 0.5 ? c : null;
-      const built = buildCar(model, col, 'private'), car = ((built.obj.children[0] as THREE.Mesh).geometry as THREE.BufferGeometry).clone();
+      // each model in each colour is built once and copied (thousands of parked cars, a few dozen kinds)
+      const tk = `${model}|${col}`; let tpl = templates.get(tk); if (!tpl) { tpl = ((buildCar(model, col, 'private').obj.children[0] as THREE.Mesh).geometry as THREE.BufferGeometry); templates.set(tk, tpl); }
+      const car = tpl.clone();
       car.scale(1.6, 1.6, 1.6); car.rotateY(ang); car.translate(x, y, z);
       const k = key(x, z); let b = cb.get(k); if (!b) cb.set(k, b = { geos: [], cars: [] });
       const pc: ParkedCar = { x, z, h: -ang, model, col, mesh: null, start: 0, count: car.attributes.position.count }; b.geos.push(car); b.cars.push(pc); parked.push(pc);

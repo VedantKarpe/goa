@@ -6,6 +6,7 @@ import { showLoader, loaderStep, loaderBar, hideLoader } from './ui/loader';
 import { buildTerrain, buildWater, waterTime } from './world/terrain';
 import { buildRoads, StreetIndex } from './world/roads';
 import { buildBuildings, BuildingIndex, windowsLit, cullChunks } from './world/buildings';
+import type { LazyChunks } from './world/lazy';
 import { buildTrees } from './world/trees';
 import { Child } from './entities/child';
 import { Input } from './systems/input';
@@ -297,7 +298,7 @@ async function start() {
   const look = new Look(renderer, scene, rig.camera);
   const resize = () => { renderer.setSize(app.clientWidth, app.clientHeight, false); look.setSize(app.clientWidth, app.clientHeight, renderer.getPixelRatio()); };
   addEventListener('resize', resize); resize();
-  await loaderStep(100, 'Aao, welcome to Goa!'); hideLoader();
+  await loaderStep(97, 'Building the streets around you…');
 
   // the cartoon look: cel shading everywhere, ink outlines on everything solid but the ground, streets and buildings
   const flat = new Set(['roads', 'buildings', 'grass', 'street life', 'love sign']);
@@ -372,12 +373,16 @@ async function start() {
     if (!move.free(x, z)) { hud.whisper(`The pilot can't find a way to ${p.name}, men.`, 3); return; }
     hud.whisper(`Waiting for a pilot to ${p.name}...`, 3, true);
     await areaMgr.ready(x, z);
+    blds.lazy.ensure(x, z, 600); (terrain.userData.lazy as LazyChunks).ensure(x, z, 1500);   // the houses there, built before the pilot drops you
     if (traffic.riding) traffic.hopOff(); if (bikes.riding) bikes.park(px, pz); if (drive.riding) { drive.park(); child.obj.visible = true; }
     px = x; pz = z; day.min = Math.min(day.min + 10, 1439);   // the ride takes ten minutes
     hud.whisper(`The pilot drops you at ${p.name}. "Thirty rupees, baba. Okay okay, for you twenty." ${p.note}`, 6, true);
   };
   day.min = 15 * 60;   // start in the afternoon: a little daylight to explore before dusk
   startDay(true);
+  // the squares around where the child starts are built now; the rest of Goa as the child travels (or in idle moments)
+  blds.lazy.ensure(px, pz, 700); (terrain.userData.lazy as LazyChunks).ensure(px, pz, 1500);
+  await loaderStep(100, 'Aao, welcome to Goa!'); hideLoader();
   const frame = (dt: number) => {
     const night = day.night;
     // a night passes three times faster than a day
@@ -550,6 +555,7 @@ async function start() {
       areaMgr.refresh(px, pz);
       const far = fog.far + 150, near = 320;
       cullInstances(LIGHT ? 380 : 520); map.loadedR = far;
+      blds.lazy.ensure(px, pz, far + 300, LIGHT ? 5 : 8); (terrain.userData.lazy as LazyChunks).ensure(px, pz, far + 600, LIGHT ? 3 : 5);   // build the squares coming into view, a few at a time
       cullChunks(blds.group, px, pz, far); cullChunks(streetLife.group, px, pz, Math.min(far, NEW_LOOK ? 600 : far)); cullChunks(terrain, px, pz, far + 100);   // building squares beyond the haze
       const treeFar = NEW_LOOK ? Math.min(far + 170, LIGHT ? 420 : 700) : far + 170;   // the new look's fuller trees: drawn out to where the haze takes them
       for (const m of treeGroup.children) { const c = m.userData.cell as [number, number] | undefined; if (c) m.visible = Math.hypot(c[0] - px, c[1] - pz) < treeFar; }

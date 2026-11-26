@@ -1,6 +1,7 @@
 // The land and the water: one mesh for the ground (a vertex at every tile corner, heights from the survey, coloured by
 // what the map says grows there) and one flat sheet for the river and the sea.
 import * as THREE from 'three';
+import { LazyChunks } from './lazy';
 import { Ground, T, WATER_Y, type PanjimData } from './data';
 import { NEW_LOOK } from './look';
 
@@ -47,9 +48,10 @@ export function buildTerrain(d: PanjimData, g: Ground, solidAt: (X: number, Z: n
   const C = 15, group = new THREE.Group(); group.name = 'terrain';
   const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
   if (NEW_LOOK) groundDetail(mat);
-  for (let j0 = 0; j0 < H; j0 += C) for (let i0 = 0; i0 < W; i0 += C) {
+  const lazy = new LazyChunks();
+  for (let j0 = 0; j0 < H; j0 += C) for (let i0 = 0; i0 < W; i0 += C) lazy.add(j0 * 4096 + i0, (i0 + C / 2) * T, (j0 + C / 2) * T, () => {
   const cw = Math.min(C, W - i0), chh = Math.min(C, H - j0);
-  { let land = false; for (let j = Math.max(0, j0 - 1); j < Math.min(H, j0 + chh + 1) && !land; j++) for (let i = Math.max(0, i0 - 1); i < Math.min(W, i0 + cw + 1); i++) if (!g.wet[j * W + i]) { land = true; break; } if (!land) continue; }   // all sea: no ground to draw
+  { let land = false; for (let j = Math.max(0, j0 - 1); j < Math.min(H, j0 + chh + 1) && !land; j++) for (let i = Math.max(0, i0 - 1); i < Math.min(W, i0 + cw + 1); i++) if (!g.wet[j * W + i]) { land = true; break; } if (!land) return; }   // all sea: no ground to draw
   const geo = new THREE.PlaneGeometry(cw * T, chh * T, cw * SUB, chh * SUB);
   geo.rotateX(-Math.PI / 2);                     // lie flat: the plane's rows run along +Z (south)
   geo.translate((i0 + cw / 2) * T, 0, (j0 + chh / 2) * T);
@@ -89,7 +91,8 @@ export function buildTerrain(d: PanjimData, g: Ground, solidAt: (X: number, Z: n
   mesh.receiveShadow = true;
   mesh.userData.cx = (i0 + cw / 2) * T; mesh.userData.cz = (j0 + chh / 2) * T;
   group.add(mesh);
-  }
+  });
+  group.userData.lazy = lazy;   // the ground's squares are made as the child comes near (main asks for them)
   return group;
 }
 
